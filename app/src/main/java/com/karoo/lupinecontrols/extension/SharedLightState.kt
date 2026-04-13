@@ -1,9 +1,9 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.content.Context
 
 object SharedLightState {
-    private const val PREFS_NAME = "magicshine_prefs"
+    private const val PREFS_NAME = "lupine_prefs"
     private const val PREF_OUTPUT_TARGET = "shared_output_target"
     private const val PREF_LEVEL_PERCENT = "shared_level_percent"
     private const val PREF_LAST_OUTPUT_TARGET = "shared_last_output_target"
@@ -21,6 +21,12 @@ object SharedLightState {
         val lastOnTarget: OutputTarget,
         val lastOnLevelPercent: Int?,
     )
+
+    fun Snapshot.toBeamMode(): com.karoo.lupinecontrols.LupineBeamMode = when (outputTarget) {
+        OutputTarget.LOW -> com.karoo.lupinecontrols.LupineBeamMode.LOW_BEAM
+        OutputTarget.HIGH -> com.karoo.lupinecontrols.LupineBeamMode.HIGH_BEAM
+        OutputTarget.OFF -> com.karoo.lupinecontrols.LupineBeamMode.OFF
+    }
 
     fun get(context: Context): Snapshot {
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

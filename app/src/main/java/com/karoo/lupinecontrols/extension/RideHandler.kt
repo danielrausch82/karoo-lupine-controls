@@ -1,4 +1,4 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.models.RideState

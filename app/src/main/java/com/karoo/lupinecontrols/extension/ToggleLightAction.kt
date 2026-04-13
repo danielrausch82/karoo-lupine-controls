@@ -1,4 +1,4 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.content.Context
 import android.content.Intent
@@ -13,8 +13,8 @@ class ToggleLightAction : ActionCallback {
         parameters: ActionParameters,
     ) {
         context.startService(
-            Intent(context, MagicshineControlService::class.java)
-                .setAction(MagicshineControlService.ACTION_TOGGLE_100),
+            Intent(context, LupineControlService::class.java)
+                .setAction(LupineControlService.ACTION_TOGGLE_100),
         )
     }
 }

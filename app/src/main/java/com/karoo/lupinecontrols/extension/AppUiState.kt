@@ -1,9 +1,9 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.content.Context
 
 object AppUiState {
-    private const val PREFS_NAME = "magicshine_prefs"
+    private const val PREFS_NAME = "lupine_prefs"
     private const val PREF_APP_UI_ACTIVE = "app_ui_active"
 
     fun isActive(context: Context): Boolean =

@@ -16,4 +16,19 @@
     <color name="karoo_ui_card_dark">#FF575757</color>
     <color name="karoo_ui_card_light">#FFF1F1F1</color>
     <color name="karoo_ui_text_dark">#FF1A1A1A</color>
+    <color name="lupine_low_beam">#FF42C83C</color>
+    <color name="lupine_low_beam_eco">#FFC6EF2D</color>
+    <color name="lupine_high_beam">#FF0A6BFF</color>
+    <color name="lupine_high_beam_eco">#FF23C7E8</color>
+    <color name="remote_shell">#FF161B20</color>
+    <color name="remote_inactive_fill">#FF2A3138</color>
+    <color name="remote_shell_top">#FF3A3A3A</color>
+    <color name="remote_shell_bottom">#FF1D1D1D</color>
+    <color name="remote_button_top">#FF2C2C2C</color>
+    <color name="remote_button_bottom">#FF161616</color>
+    <color name="remote_button_edge">#FF0C0C0C</color>
+    <color name="remote_shell_edge">#FF0A0A0A</color>
+    <color name="remote_shell_highlight">#3DFFFFFF</color>
+    <color name="lupine_pair_success">#FF0A6BFF</color>
+    <color name="lupine_disconnect">#FFFF3B30</color>
 </resources>

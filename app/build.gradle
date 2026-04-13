@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace 'com.lenne0815.karoomagicshine'
+    namespace 'com.karoo.lupinecontrols'
     compileSdk 35
 
     buildFeatures {
@@ -13,11 +13,11 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.lenne0815.karoomagicshine"
+        applicationId "com.karoo.lupinecontrols"
         minSdk 26
         targetSdk 34
-        versionCode 21
-        versionName "Beta 1.2"
+        versionCode 1
+        versionName "Beta 1.0"
     }
 
     buildTypes {
@@ -46,7 +46,7 @@ dependencies {
     implementation 'androidx.compose.ui:ui-unit'
     implementation 'androidx.glance:glance-appwidget:1.1.1'
 
-    implementation("io.hammerhead:karoo-ext:1.1.8")
+    implementation project(':karoo-ext-lib')
 
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0'
     implementation("no.nordicsemi.kotlin.ble:client-android:2.0.0-alpha02")

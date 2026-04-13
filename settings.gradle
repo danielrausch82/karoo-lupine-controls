@@ -8,20 +8,19 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    versionCatalogs {
+        libs {
+            from(files("vendor/karoo-ext/gradle/libs.versions.toml"))
+        }
+    }
     repositories {
         mavenLocal()
         google()
         mavenCentral()
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/hammerheadnav/karoo-ext")
-            credentials {
-                username = providers.gradleProperty("gpr.user").getOrElse(System.getenv("GPR_USER") ?: "")
-                password = providers.gradleProperty("gpr.key").getOrElse(System.getenv("GPR_KEY") ?: "")
-            }
-        }
     }
 }
 
-rootProject.name = "Karoo Magicshine Controls"
+rootProject.name = "Karoo Lupine Controls"
 include ':app'
+include ':karoo-ext-lib'
+project(':karoo-ext-lib').projectDir = new File(rootDir, 'vendor/karoo-ext/lib')

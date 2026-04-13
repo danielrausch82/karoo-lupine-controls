@@ -15,18 +15,18 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@drawable/ic_lupine_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_lupine_launcher"
         android:supportsRtl="true"
-        android:theme="@style/Theme.KarooMagicshineControls">
+        android:theme="@style/Theme.KarooLupineControls">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:documentLaunchMode="never"
-            android:theme="@style/Theme.KarooMagicshineControls">
+            android:theme="@style/Theme.KarooLupineControls">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -34,13 +34,13 @@
         </activity>
 
         <service
-            android:name=".extension.MagicshineControlService"
+            android:name=".extension.LupineControlService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
         <service
-            android:name=".extension.MagicshineKarooExtension"
+            android:name=".extension.LupineKarooExtension"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
@@ -53,7 +53,7 @@
 
         <meta-data
             android:name="io.hammerhead.karooext.MANIFEST_URL"
-            android:value="https://raw.githubusercontent.com/lenne0815/karoo-magicshine-controls/fff167e/app/manifest.json" />
+            android:value="https://raw.githubusercontent.com/danielrausch82/karoo-lupine-controls/main/app/manifest.json" />
 
         <receiver
             android:name=".extension.LightActionReceiver"

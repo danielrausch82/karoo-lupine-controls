@@ -1,4 +1,4 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,9 +10,8 @@ import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.lenne0815.karoomagicshine.MagicshineModule
-import com.lenne0815.karoomagicshine.MagicshineProtocol
-import com.lenne0815.karoomagicshine.R
+import com.karoo.lupinecontrols.LupineBeamMode
+import com.karoo.lupinecontrols.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,7 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-class MagicshineControlService : Service() {
+class LupineControlService : Service() {
 
     interface Listener {
         fun onStatus(status: String) {}
@@ -30,16 +29,16 @@ class MagicshineControlService : Service() {
     }
 
     inner class LocalBinder : Binder() {
-        fun getService(): MagicshineControlService = this@MagicshineControlService
+        fun getService(): LupineControlService = this@LupineControlService
     }
 
     companion object {
-        private const val TAG = "MagicshineSvc"
-        private const val CHANNEL_ID = "magicshine_background"
+        private const val TAG = "LupineSvc"
+        private const val CHANNEL_ID = "lupine_background"
         private const val NOTIFICATION_ID = 4042
-        const val ACTION_TOGGLE_100 = "com.lenne0815.karoomagicshine.action.TOGGLE_100"
-        const val ACTION_FIELD_VISIBLE = "com.lenne0815.karoomagicshine.action.FIELD_VISIBLE"
-        const val ACTION_FIELD_HIDDEN = "com.lenne0815.karoomagicshine.action.FIELD_HIDDEN"
+        const val ACTION_TOGGLE_100 = "com.karoo.lupinecontrols.action.TOGGLE_100"
+        const val ACTION_FIELD_VISIBLE = "com.karoo.lupinecontrols.action.FIELD_VISIBLE"
+        const val ACTION_FIELD_HIDDEN = "com.karoo.lupinecontrols.action.FIELD_HIDDEN"
     }
 
     private val binder = LocalBinder()
@@ -54,7 +53,7 @@ class MagicshineControlService : Service() {
     @Volatile private var foregroundHeld: Boolean = false
 
     private val controller by lazy {
-        MagicshineBleController(
+        LupineBleController(
             applicationContext,
             onStatus = { status -> listeners.toList().forEach { it.onStatus(status) } },
             onConnectionStatus = { status -> listeners.toList().forEach { it.onConnectionStatus(status) } },
@@ -153,17 +152,16 @@ class MagicshineControlService : Service() {
         cancelPendingWork()
         val enabled = LightActionReceiver.isToggleEnabled(this)
         val snapshot = SharedLightState.get(this)
-        val targetModule = when (snapshot.lastOnTarget) {
-            SharedLightState.OutputTarget.HIGH -> MagicshineModule.MODULE_2
+        val targetMode = when (snapshot.lastOnTarget) {
+            SharedLightState.OutputTarget.HIGH -> LupineBeamMode.HIGH_BEAM
             SharedLightState.OutputTarget.LOW,
-            SharedLightState.OutputTarget.OFF -> MagicshineModule.MODULE_1
+            SharedLightState.OutputTarget.OFF -> LupineBeamMode.LOW_BEAM
         }
-        val targetPercent = snapshot.lastOnLevelPercent ?: 100
         if (enabled && controller.hasLiveConnection()) {
             LightActionReceiver.setToggleEnabled(this, false)
             SharedLightState.set(this, SharedLightState.OutputTarget.OFF, null)
             LightFieldState.set(this, LightFieldState.STATUS_CONNECTED)
-            controller.send(MagicshineProtocol.buildPresetFrame(targetModule, 0))
+            controller.applyBeamMode(LupineBeamMode.OFF)
             return
         }
 
@@ -184,21 +182,22 @@ class MagicshineControlService : Service() {
                 delay(50)
             }
             if (!controller.hasLiveConnection()) {
-                LightActionReceiver.setToggleEnabled(this@MagicshineControlService, false)
-                SharedLightState.set(this@MagicshineControlService, SharedLightState.OutputTarget.OFF, null)
+                LightActionReceiver.setToggleEnabled(this@LupineControlService, false)
+                SharedLightState.set(this@LupineControlService, SharedLightState.OutputTarget.OFF, null)
                 return@launch
             }
-            LightActionReceiver.setToggleEnabled(this@MagicshineControlService, true)
+            LightActionReceiver.setToggleEnabled(this@LupineControlService, true)
             SharedLightState.set(
-                this@MagicshineControlService,
-                when (targetModule) {
-                    MagicshineModule.MODULE_2 -> SharedLightState.OutputTarget.HIGH
-                    MagicshineModule.MODULE_1 -> SharedLightState.OutputTarget.LOW
+                this@LupineControlService,
+                if (targetMode == LupineBeamMode.HIGH_BEAM) {
+                    SharedLightState.OutputTarget.HIGH
+                } else {
+                    SharedLightState.OutputTarget.LOW
                 },
-                targetPercent,
+                null,
             )
-            LightFieldState.set(this@MagicshineControlService, LightFieldState.STATUS_CONNECTED)
-            controller.send(MagicshineProtocol.buildPresetFrame(targetModule, targetPercent))
+            LightFieldState.set(this@LupineControlService, LightFieldState.STATUS_CONNECTED)
+            controller.applyBeamMode(targetMode)
         }.also { job ->
             job.invokeOnCompletion {
                 if (pendingToggleJob === job) pendingToggleJob = null
@@ -242,7 +241,7 @@ class MagicshineControlService : Service() {
         controller.startDiscovery(forceRestart = true)
         pendingConnectJob = scope.launch {
             repeat(24) {
-                if (AppUiState.isActive(this@MagicshineControlService)) return@launch
+                if (AppUiState.isActive(this@LupineControlService)) return@launch
                 if (controller.hasLiveConnection() || controller.hasConnectInFlight()) return@launch
                 val selected = controller.currentSelectedLamp()
                 if (selected?.address == controller.currentPreferredAddress()) {
@@ -263,7 +262,7 @@ class MagicshineControlService : Service() {
         pendingExtensionRetryJob = scope.launch {
             repeat(3) { attempt ->
                 delay(3500)
-                if (AppUiState.isActive(this@MagicshineControlService)) return@launch
+                if (AppUiState.isActive(this@LupineControlService)) return@launch
                 if (controller.currentPreferredAddress() == null) return@launch
                 if (controller.hasLiveConnection()) return@launch
                 if (controller.hasConnectInFlight()) return@repeat
@@ -280,6 +279,10 @@ class MagicshineControlService : Service() {
         cancelPendingWork()
         controller.disconnect()
         stopForegroundIfHeld()
+    }
+
+    fun applyBeamMode(mode: LupineBeamMode) {
+        controller.applyBeamMode(mode)
     }
     fun send(frameHex: String) = controller.send(frameHex)
     fun startRepeatingCommand(frameHex: String, intervalMs: Long = 1500L) =
@@ -305,7 +308,7 @@ class MagicshineControlService : Service() {
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                "Magicshine background",
+                "Lupine background",
                 NotificationManager.IMPORTANCE_LOW,
             ),
         )
@@ -314,9 +317,9 @@ class MagicshineControlService : Service() {
     private fun startForegroundForExtension(content: String) {
         if (foregroundHeld) return
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Magicshine")
+            .setContentTitle("Lupine Controls")
             .setContentText(content)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_lupine_notification)
             .setOngoing(true)
             .setSilent(true)
             .build()

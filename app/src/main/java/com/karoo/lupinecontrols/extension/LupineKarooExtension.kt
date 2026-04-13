@@ -1,4 +1,4 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.app.Service.RECEIVER_EXPORTED
 import android.content.BroadcastReceiver
@@ -14,37 +14,37 @@ import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.models.ReleaseBluetooth
 import io.hammerhead.karooext.models.RequestBluetooth
 
-class MagicshineKarooExtension : KarooExtension("karoo-magicshine-controls", "1.0") {
+class LupineKarooExtension : KarooExtension("karoo-lupine-controls", "1.0") {
     companion object {
-        private const val TAG = "MagicshineExt"
+        private const val TAG = "LupineExt"
         private const val ACTION_RIDE_APP_OPENED = "io.hammerhead.intent.action.RIDE_APP_OPENED"
         private const val ACTION_RIDE_STOP = "io.hammerhead.hx.intent.action.RIDE_STOP"
     }
 
     private val karooSystem by lazy { KarooSystemService(this) }
-    private var lightService: MagicshineControlService? = null
+    private var lightService: LupineControlService? = null
     private var lightLifecycleHandler: LightLifecycleHandler? = null
     private var karooConnected = false
     @Volatile private var pendingRideOpen = false
     @Volatile private var lastControllerStatus: String = "idle"
     @Volatile private var lastConnectionStatus: String = "disconnected"
 
-    private val serviceListener = object : MagicshineControlService.Listener {
+    private val serviceListener = object : LupineControlService.Listener {
         override fun onStatus(status: String) = handleControllerStatus(status)
         override fun onConnectionStatus(status: String) = handleConnectionStatus(status)
     }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            val service = (binder as? MagicshineControlService.LocalBinder)?.getService() ?: return
+            val service = (binder as? LupineControlService.LocalBinder)?.getService() ?: return
             lightService = service
             service.registerListener(serviceListener)
             if (karooConnected) {
                 service.onExtensionReadyFromBoundClient()
-                LightFieldState.set(this@MagicshineKarooExtension, LightFieldState.STATUS_IDLE)
+                LightFieldState.set(this@LupineKarooExtension, LightFieldState.STATUS_IDLE)
                 lightLifecycleHandler?.shutdownHandling()
                 lightLifecycleHandler = LightLifecycleHandler(
-                    this@MagicshineKarooExtension,
+                    this@LupineKarooExtension,
                     karooSystem,
                     service,
                 ).also {
@@ -62,7 +62,7 @@ class MagicshineKarooExtension : KarooExtension("karoo-magicshine-controls", "1.
             lightLifecycleHandler?.shutdownHandling()
             lightLifecycleHandler = null
             lightService = null
-            LightFieldState.set(this@MagicshineKarooExtension, LightFieldState.STATUS_DISCONNECTED)
+            LightFieldState.set(this@LupineKarooExtension, LightFieldState.STATUS_DISCONNECTED)
         }
     }
 
@@ -103,7 +103,7 @@ class MagicshineKarooExtension : KarooExtension("karoo-magicshine-controls", "1.
             RECEIVER_EXPORTED,
         )
         bindService(
-            Intent(this, MagicshineControlService::class.java),
+            Intent(this, LupineControlService::class.java),
             serviceConnection,
             Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT,
         )
@@ -151,10 +151,10 @@ class MagicshineKarooExtension : KarooExtension("karoo-magicshine-controls", "1.
     }
 
     override fun onBonusAction(actionId: String) {
-        when (MagicshineAction.fromActionId(actionId)) {
-            MagicshineAction.OFF -> lightService?.send("DE14A20101010100000000000000000000BB0DED")
-            MagicshineAction.LEVEL_10 -> lightService?.send("DE14A2010101010A000000000000000000BB07ED")
-            MagicshineAction.LEVEL_100 -> lightService?.send("DE14A20101010160000000000000000000BB6DED")
+        when (LupineAction.fromActionId(actionId)) {
+            LupineAction.OFF -> lightService?.applyBeamMode(com.karoo.lupinecontrols.LupineBeamMode.OFF)
+            LupineAction.LOW_BEAM -> lightService?.applyBeamMode(com.karoo.lupinecontrols.LupineBeamMode.LOW_BEAM)
+            LupineAction.HIGH_BEAM -> lightService?.applyBeamMode(com.karoo.lupinecontrols.LupineBeamMode.HIGH_BEAM)
             null -> Unit
         }
     }

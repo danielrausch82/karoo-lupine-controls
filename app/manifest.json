@@ -1,11 +1,11 @@
 {
-  "label": "Magicshine Controls",
-  "packageName": "com.lenne0815.karoomagicshine",
-  "iconUrl": "https://github.com/lenne0815/karoo-magicshine-controls/releases/latest/download/icon.png",
-  "latestApkUrl": "https://github.com/lenne0815/karoo-magicshine-controls/releases/latest/download/karoo-magicshine-controls-beta-1.2.apk",
-  "latestVersion": "Beta 1.2",
-  "latestVersionCode": 21,
-  "developer": "Lennart Thomsen",
-  "description": "Control supported Magicshine lights from the Karoo app or the in-ride field, with lamp selection, quick beam switching, and battery and temperature telemetry.",
-  "releaseNotes": "* Added ride screen button\n* Added lamp selector gate\n* Added support for M2-B0 / M2-BO / M1-B0 / M1-BO lamps\n* Improved ride auto-connect and disconnect\n* Improved app and ride state sync\n* Refreshed icon and app metadata"
+  "label": "Lupine Controls",
+  "packageName": "com.karoo.lupinecontrols",
+  "iconUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/icon.png",
+  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.0.apk",
+  "latestVersion": "Beta 1.0",
+  "latestVersionCode": 1,
+  "developer": "Daniel Rausch",
+  "description": "Control the Lupine SL Grano F from the Karoo app or the in-ride field, with ride-aware connection handling and a Lupine-specific control surface.",
+  "releaseNotes": "* First public Lupine Controls beta for Karoo\n* Replaced all Magicshine app metadata with Lupine branding\n* Added the Lupine remote-style control surface with pairing feedback\n* Included English and German app text plus updated install assets"
 }

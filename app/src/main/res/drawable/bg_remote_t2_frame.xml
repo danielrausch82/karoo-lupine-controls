@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="90"
+        android:endColor="@color/remote_button_bottom"
+        android:startColor="@color/remote_button_top" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/remote_button_edge" />
+    <corners android:radius="16dp" />
+</shape>

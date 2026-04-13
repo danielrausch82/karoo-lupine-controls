@@ -15,52 +15,59 @@
         android:paddingBottom="8dp">
 
         <LinearLayout
-            android:id="@+id/btnChangeLamp"
             android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:background="@drawable/bg_lamp_switch"
-            android:clickable="true"
-            android:focusable="true"
-            android:foreground="?attr/selectableItemBackground"
+            android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp">
+            android:paddingStart="2dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="2dp"
+            android:paddingBottom="6dp">
 
             <ImageView
-                android:id="@+id/imgChangeLamp"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
                 android:contentDescription="@null"
-                android:src="@drawable/ic_sync_alt"
-                android:tint="#FFFFFFFF" />
+                android:src="@drawable/ic_lupine_launcher" />
 
-            <TextView
-                android:id="@+id/txtChangeLampLabel"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="10dp"
                 android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="Switch lamp"
-                android:textColor="#FFFFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_name"
+                    android:textColor="#FF1A1A1A"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text="Karoo Lupine Controls"
+                    android:textColor="#FF666666"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/lampChooserGate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="2dp"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/txtChooserTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Select lamp"
+                android:text="@string/select_lupine_light"
                 android:textSize="12sp" />
 
             <TextView
@@ -68,7 +75,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="Searching for M2-B0 / M1-B0 lamps"
+                android:text="@string/searching_for_lupine"
                 android:textSize="10sp" />
 
             <LinearLayout
@@ -89,406 +96,118 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="56dp"
-                    android:layout_marginEnd="3dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_lamp_switch"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:paddingStart="2dp"
-                    android:paddingEnd="2dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                    android:text="BATTERY"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/txtBattery"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="1dp"
-                        android:text="?"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="56dp"
-                    android:layout_marginStart="3dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_lamp_switch"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:paddingStart="2dp"
-                    android:paddingEnd="2dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="TEMP"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/txtTemperature"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="1dp"
-                        android:text="?"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/btnConnect"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_connect_idle"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
-                android:gravity="center"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_lamp_switch"
                 android:orientation="vertical"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp">
+                android:paddingStart="10dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="9dp">
 
                 <TextView
-                    android:id="@+id/txtConnectLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="CONNECT"
+                    android:text="@string/remote_pairing_title"
                     android:textColor="#FFFFFFFF"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/txtConnectState"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="searching"
-                    android:textColor="#FFF3E0"
                     android:textSize="13sp"
                     android:textStyle="bold" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:id="@+id/btnModule1"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginEnd="2dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_module_selected"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="horizontal"
-                    android:paddingStart="3dp"
-                    android:paddingEnd="3dp">
-
-                    <ImageView
-                        android:id="@+id/imgModule1"
-                        android:layout_width="25dp"
-                        android:layout_height="25dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_flashlight_on"
-                        android:tint="#FFFFFFFF" />
-
-                    <TextView
-                        android:id="@+id/txtModule1"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="4dp"
-                        android:text="LOW"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/btnModule2"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="2dp"
-                    android:layout_marginEnd="2dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_module_idle"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="horizontal"
-                    android:paddingStart="3dp"
-                    android:paddingEnd="3dp">
-
-                    <ImageView
-                        android:id="@+id/imgModule2"
-                        android:layout_width="25dp"
-                        android:layout_height="25dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_flash_on"
-                        android:tint="#FFFFFFFF" />
-
-                    <TextView
-                        android:id="@+id/txtModule2"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="4dp"
-                        android:text="HIGH"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/btnOff"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="2dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_module_idle"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="horizontal"
-                    android:paddingStart="3dp"
-                    android:paddingEnd="3dp">
-
-                    <ImageView
-                        android:id="@+id/imgOff"
-                        android:layout_width="25dp"
-                        android:layout_height="25dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_power_settings_new"
-                        android:tint="#FFFFFFFF" />
-
-                    <TextView
-                        android:id="@+id/txtOff"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="4dp"
-                        android:text="OFF"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:id="@+id/btnLevel25"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="2dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_lamp_switch"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="25"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/btnLevel50"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="2dp"
-                    android:layout_marginEnd="2dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_lamp_switch"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="50"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/btnLevel75"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="2dp"
-                    android:layout_marginEnd="2dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_lamp_switch"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="75"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/btnLevel100"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="2dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_lamp_switch"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="100"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:id="@+id/btnSos"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginEnd="3dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_lamp_switch"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_e911_emergency"
-                        android:tint="#FFFFFFFF" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:text="SOS"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/btnBlitz"
-                    android:layout_width="0dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="3dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_lamp_switch"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground"
-                    android:gravity="center"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_flash_on"
-                        android:tint="#FFFFFFFF" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:text="FLASH"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/btnDisconnect"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_lamp_switch"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
-                android:gravity="center"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:contentDescription="@null"
-                    android:src="@drawable/ic_link_off"
-                    android:tint="#FFFFFFFF" />
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="DISCONNECT"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
+                    android:layout_marginTop="3dp"
+                    android:text="@string/remote_pairing_body"
+                    android:textColor="#FFE8E8E8"
+                    android:textSize="11sp" />
             </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+                <FrameLayout
+                    android:layout_width="236dp"
+                    android:layout_height="176dp">
+
+                    <FrameLayout
+                        android:layout_width="220dp"
+                        android:layout_height="156dp"
+                        android:layout_gravity="center">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/bg_remote_shell" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/bg_remote_shell_gloss" />
+
+                        <FrameLayout
+                            android:id="@+id/remoteT1Button"
+                            android:layout_width="92dp"
+                            android:layout_height="116dp"
+                            android:layout_gravity="start|center_vertical"
+                            android:layout_marginStart="28dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:foreground="?attr/selectableItemBackgroundBorderless"
+                            android:longClickable="true">
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:background="@drawable/bg_remote_t1_frame" />
+
+                            <View
+                                android:id="@+id/remoteT1Light"
+                                android:layout_width="84dp"
+                                android:layout_height="106dp"
+                                android:layout_gravity="center"
+                                android:alpha="1"
+                                android:background="@drawable/bg_remote_light_fill" />
+
+                            <ImageView
+                                android:id="@+id/remoteT1Icon"
+                                android:layout_width="46dp"
+                                android:layout_height="46dp"
+                                android:layout_gravity="center"
+                                android:contentDescription="@null"
+                                android:src="@drawable/ic_remote_lamp_glyph"
+                                android:tint="#FFFFFFFF" />
+                        </FrameLayout>
+
+                        <FrameLayout
+                            android:id="@+id/remoteT2Button"
+                            android:layout_width="56dp"
+                            android:layout_height="82dp"
+                            android:layout_gravity="end|center_vertical"
+                            android:layout_marginEnd="26dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:foreground="?attr/selectableItemBackgroundBorderless"
+                            android:longClickable="true">
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:background="@drawable/bg_remote_t2_frame" />
+
+                            <View
+                                android:id="@+id/remoteT2Light"
+                                android:layout_width="48dp"
+                                android:layout_height="72dp"
+                                android:layout_gravity="center"
+                                android:alpha="1"
+                                android:background="@drawable/bg_remote_light_fill" />
+                        </FrameLayout>
+                    </FrameLayout>
+                </FrameLayout>
+            </LinearLayout>
+
         </LinearLayout>
 
     </LinearLayout>

@@ -14,7 +14,7 @@
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:contentDescription="@null"
-        android:src="@drawable/ic_flash_on"
+        android:src="@drawable/ic_lupine_high"
         android:tint="#FFFFFFFF" />
 
     <TextView
@@ -22,7 +22,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:text="OFF"
+        android:text="@string/beam_off"
         android:textColor="#FFFFFFFF"
         android:textSize="24sp"
         android:textStyle="bold" />

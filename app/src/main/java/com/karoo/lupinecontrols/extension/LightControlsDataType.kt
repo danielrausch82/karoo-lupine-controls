@@ -1,4 +1,4 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.content.Context
 import android.content.Intent
@@ -29,7 +29,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
-import com.lenne0815.karoomagicshine.MainActivity
+import com.karoo.lupinecontrols.MainActivity
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.internal.ViewEmitter
 import io.hammerhead.karooext.models.UpdateGraphicConfig
@@ -54,8 +54,8 @@ class LightControlsDataType(extension: String) : DataTypeImpl(extension, TYPE_ID
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         emitter.onNext(UpdateGraphicConfig(showHeader = false))
         context.startService(
-            Intent(context, MagicshineControlService::class.java)
-                .setAction(MagicshineControlService.ACTION_FIELD_VISIBLE),
+            Intent(context, LupineControlService::class.java)
+                .setAction(LupineControlService.ACTION_FIELD_VISIBLE),
         )
         val scope = CoroutineScope(Dispatchers.IO)
         val density = context.resources.displayMetrics.density.coerceAtLeast(1f)
@@ -68,11 +68,12 @@ class LightControlsDataType(extension: String) : DataTypeImpl(extension, TYPE_ID
                 val enabled = LightActionReceiver.isToggleEnabled(context)
                 val status = LightFieldState.get(context)
                 val snapshot = SharedLightState.get(context)
-                val signature = "$RENDER_VERSION|$enabled|$status|${snapshot.outputTarget}|${snapshot.levelPercent}|${snapshot.lastOnTarget}|${snapshot.lastOnLevelPercent}"
+                val actualSnapshot = ActualLightState.get(context)
+                val signature = "$RENDER_VERSION|$enabled|$status|${snapshot.outputTarget}|${snapshot.levelPercent}|${snapshot.lastOnTarget}|${snapshot.lastOnLevelPercent}|${actualSnapshot.outputTarget}|${actualSnapshot.isEco}|${actualSnapshot.rawHex}"
                 if (lastSignature != signature) {
                     val remoteViews = glance.compose(context, DpSize(viewWidth, viewHeight)) {
                         SplitLightField(
-                            toggleUi = buildToggleUi(enabled, status, snapshot),
+                            toggleUi = buildToggleUi(enabled, status, snapshot, actualSnapshot),
                             totalWidth = viewWidth,
                             totalHeight = viewHeight,
                             baseTextSize = baseTextSize,
@@ -87,48 +88,84 @@ class LightControlsDataType(extension: String) : DataTypeImpl(extension, TYPE_ID
         emitter.setCancellable {
             job.cancel()
             context.startService(
-                Intent(context, MagicshineControlService::class.java)
-                    .setAction(MagicshineControlService.ACTION_FIELD_HIDDEN),
+                Intent(context, LupineControlService::class.java)
+                    .setAction(LupineControlService.ACTION_FIELD_HIDDEN),
             )
         }
     }
 
-    private fun buildToggleUi(enabled: Boolean, status: String, snapshot: SharedLightState.Snapshot): ButtonUi {
-        val actualStateLabel = buildActualStateLabel(snapshot)
-        val actualStateIsOff = snapshot.outputTarget == SharedLightState.OutputTarget.OFF || !enabled
+    private fun buildToggleUi(
+        enabled: Boolean,
+        status: String,
+        snapshot: SharedLightState.Snapshot,
+        actualSnapshot: ActualLightState.Snapshot,
+    ): ButtonUi {
+        val actualStateLabel = buildActualStateLabel(snapshot, actualSnapshot)
+        val actualStateIsOff = effectiveOutputTarget(snapshot, actualSnapshot) == SharedLightState.OutputTarget.OFF || !enabled
         return when (status) {
             LightFieldState.STATUS_SEARCHING ->
                 ButtonUi("SEARCH", CARD_COLOR)
             LightFieldState.STATUS_FOUND ->
-                ButtonUi(actualStateLabel, if (actualStateIsOff) CARD_COLOR else SOFT_GREEN_COLOR)
+                ButtonUi(actualStateLabel, if (actualStateIsOff) CARD_COLOR else statusColor(snapshot, actualSnapshot))
             LightFieldState.STATUS_CONNECTING ->
                 ButtonUi("CONNECT", CARD_COLOR, allowTwoLines = true)
             LightFieldState.STATUS_CONNECTED -> if (actualStateIsOff) {
                 ButtonUi("OFF", CARD_COLOR)
             } else {
-                ButtonUi(actualStateLabel, GREEN_COLOR)
+                ButtonUi(actualStateLabel, statusColor(snapshot, actualSnapshot))
             }
             LightFieldState.STATUS_NO_DEVICE ->
-                ButtonUi("NO\nLAMP", ORANGE_COLOR, allowTwoLines = true)
+                ButtonUi("NO\nLIGHT", ORANGE_COLOR, allowTwoLines = true)
             LightFieldState.STATUS_ERROR ->
                 ButtonUi("ERROR", ORANGE_COLOR)
             LightFieldState.STATUS_DISCONNECTED,
             LightFieldState.STATUS_IDLE ->
-                ButtonUi(actualStateLabel, if (actualStateIsOff) CARD_COLOR else SOFT_GREEN_COLOR)
+                ButtonUi(actualStateLabel, if (actualStateIsOff) CARD_COLOR else statusColor(snapshot, actualSnapshot))
             else ->
-                ButtonUi(actualStateLabel, if (actualStateIsOff) CARD_COLOR else SOFT_GREEN_COLOR)
+                ButtonUi(actualStateLabel, if (actualStateIsOff) CARD_COLOR else statusColor(snapshot, actualSnapshot))
         }
     }
 
-    private fun buildActualStateLabel(snapshot: SharedLightState.Snapshot): String {
-        if (snapshot.outputTarget == SharedLightState.OutputTarget.OFF) return "OFF"
-        val level = snapshot.levelPercent ?: snapshot.lastOnLevelPercent ?: 100
-        val prefix = when (snapshot.outputTarget) {
-            SharedLightState.OutputTarget.HIGH -> "H"
-            SharedLightState.OutputTarget.LOW,
-            SharedLightState.OutputTarget.OFF -> "L"
+    private fun buildActualStateLabel(
+        snapshot: SharedLightState.Snapshot,
+        actualSnapshot: ActualLightState.Snapshot,
+    ): String {
+        val outputTarget = effectiveOutputTarget(snapshot, actualSnapshot)
+        if (outputTarget == SharedLightState.OutputTarget.OFF) return "OFF"
+        val isEco = if (actualSnapshot.outputTarget != ActualLightState.OutputTarget.UNKNOWN) {
+            actualSnapshot.isEco
+        } else {
+            (snapshot.levelPercent ?: snapshot.lastOnLevelPercent ?: 25) in setOf(50, 100)
         }
-        return "$prefix$level"
+        return when (outputTarget) {
+            SharedLightState.OutputTarget.HIGH -> if (isEco) "HIGH ECO" else "HIGH"
+            SharedLightState.OutputTarget.LOW -> if (isEco) "LOW ECO" else "LOW"
+            SharedLightState.OutputTarget.OFF -> "OFF"
+        }
+    }
+
+    private fun statusColor(snapshot: SharedLightState.Snapshot, actualSnapshot: ActualLightState.Snapshot): Color {
+        val outputTarget = effectiveOutputTarget(snapshot, actualSnapshot)
+        val isEco = if (actualSnapshot.outputTarget != ActualLightState.OutputTarget.UNKNOWN) {
+            actualSnapshot.isEco
+        } else {
+            (snapshot.levelPercent ?: snapshot.lastOnLevelPercent ?: 25) in setOf(50, 100)
+        }
+        return when (outputTarget) {
+            SharedLightState.OutputTarget.HIGH -> if (isEco) CYAN_COLOR else BLUE_COLOR
+            SharedLightState.OutputTarget.LOW -> if (isEco) LIME_COLOR else GREEN_COLOR
+            SharedLightState.OutputTarget.OFF -> CARD_COLOR
+        }
+    }
+
+    private fun effectiveOutputTarget(
+        snapshot: SharedLightState.Snapshot,
+        actualSnapshot: ActualLightState.Snapshot,
+    ): SharedLightState.OutputTarget = when (actualSnapshot.outputTarget) {
+        ActualLightState.OutputTarget.HIGH -> SharedLightState.OutputTarget.HIGH
+        ActualLightState.OutputTarget.LOW -> SharedLightState.OutputTarget.LOW
+        ActualLightState.OutputTarget.OFF -> SharedLightState.OutputTarget.OFF
+        ActualLightState.OutputTarget.UNKNOWN -> snapshot.outputTarget
     }
 
     @Composable
@@ -226,8 +263,10 @@ class LightControlsDataType(extension: String) : DataTypeImpl(extension, TYPE_ID
         const val TYPE_ID = "DATATYPE_LIGHT_CONTROLS"
         private const val RENDER_VERSION = 10
 
-        private val GREEN_COLOR = Color(0xFF20D39B)
-        private val SOFT_GREEN_COLOR = Color(0xFF76DEC0)
+        private val GREEN_COLOR = Color(0xFF42C83C)
+        private val LIME_COLOR = Color(0xFFC6EF2D)
+        private val BLUE_COLOR = Color(0xFF0A6BFF)
+        private val CYAN_COLOR = Color(0xFF23C7E8)
         private val CARD_COLOR = Color(0xFF6B6B6B)
         private val CARD_DARK_COLOR = Color(0xFF575757)
         private val ORANGE_COLOR = Color(0xFFFF6B00)

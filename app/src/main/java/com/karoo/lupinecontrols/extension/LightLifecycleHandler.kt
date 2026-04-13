@@ -1,4 +1,4 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.content.Context
 import android.util.Log
@@ -7,11 +7,11 @@ import io.hammerhead.karooext.KarooSystemService
 class LightLifecycleHandler(
     private val context: Context,
     karooSystem: KarooSystemService,
-    private val service: MagicshineControlService,
+    private val service: LupineControlService,
 ) : RideHandler(karooSystem) {
 
     companion object {
-        private const val TAG = "MagicshineExt"
+        private const val TAG = "LupineExt"
     }
 
     private var started = false

@@ -1,9 +1,9 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.content.Context
 
 object LightFieldState {
-    private const val PREFS_NAME = "magicshine_prefs"
+    private const val PREFS_NAME = "lupine_prefs"
     private const val PREF_EXTENSION_FIELD_STATUS = "extension_field_status"
 
     const val STATUS_IDLE = "idle"

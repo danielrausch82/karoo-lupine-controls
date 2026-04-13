@@ -1,4 +1,4 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.Manifest
 import android.content.Context
@@ -6,7 +6,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.lenne0815.karoomagicshine.MagicshineProtocol
+import com.karoo.lupinecontrols.LupineLampOutputTarget
+import com.karoo.lupinecontrols.LupineBeamMode
+import com.karoo.lupinecontrols.LupineBleProfile
+import com.karoo.lupinecontrols.LupineProtocol
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,7 +36,7 @@ data class LampCandidate(
 )
 
 @OptIn(ExperimentalUuidApi::class)
-class MagicshineBleController(
+class LupineBleController(
     context: Context,
     private var onStatus: (String) -> Unit = {},
     private var onConnectionStatus: (String) -> Unit = {},
@@ -41,14 +44,13 @@ class MagicshineBleController(
     private var onTemperatureStatus: (String) -> Unit = {},
 ) {
     companion object {
-        private const val TAG = "MagicshineBle"
+        private const val TAG = "LupineBle"
         val SUPPORTED_NAME_PREFIXES = setOf(
-            "M2-B0",
-            "M2-BO",
-            "M1-B0",
-            "M1-BO",
+            "Lupine",
+            "SL",
+            "ONSemiconduc",
         )
-        private const val PREFS_NAME = "magicshine_prefs"
+        private const val PREFS_NAME = "lupine_prefs"
         private const val PREF_SELECTED_LAMP_ADDRESS = "selected_lamp_address"
     }
 
@@ -57,8 +59,8 @@ class MagicshineBleController(
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val centralManager by lazy { CentralManager.Factory.native(appContext, scope) }
 
-    private val targetService = Uuid.parse("0000FFE1-0000-1000-8000-00805f9b34fb")
-    private val targetChar = Uuid.parse("0000FFE0-0000-1000-8000-00805f9b34fb")
+    private val targetService = Uuid.parse(LupineBleProfile.PRIMARY_SERVICE_UUID)
+    private val targetChar = Uuid.parse(LupineBleProfile.COMMAND_CHARACTERISTIC_UUID)
 
     private val connectionOptions by lazy {
         CentralManager.ConnectionOptions.Direct(timeout = 8.seconds, retry = 0, retryDelay = 1.seconds)
@@ -163,7 +165,7 @@ class MagicshineBleController(
             clearActiveConnectionState(clearCachedPeripheral = true)
             publishConnectionStatus("disconnected")
             resetTelemetryStatus()
-            publishStatus("searching")
+            publishStatus("idle")
             return
         }
         synchronized(candidateLock) {
@@ -183,7 +185,7 @@ class MagicshineBleController(
     fun currentSelectedLamp(): LampCandidate? {
         val selected = preferredAddress ?: return null
         return synchronized(candidateLock) { knownCandidates[selected] }
-            ?: lastPeripheral?.let { LampCandidate(it.address, it.name ?: "Magicshine") }
+            ?: lastPeripheral?.let { LampCandidate(it.address, it.name ?: "Lupine SL Grano F") }
     }
 
     private fun preferredPeripheral(): Peripheral? {
@@ -259,8 +261,13 @@ class MagicshineBleController(
     }
 
     fun refreshTelemetry() {
-        // Telemetry polling is disabled until the protocol is understood well enough
-        // to avoid interfering with active light control.
+        scope.launch {
+            operationMutex.withLock {
+                val target = preferredPeripheral() ?: lastPeripheral ?: return@withLock
+                if (target.state.value !is ConnectionState.Connected) return@withLock
+                requestTelemetry(target)
+            }
+        }
     }
 
     fun disconnect() {
@@ -284,22 +291,6 @@ class MagicshineBleController(
 
                 try {
                     publishStatus("disconnecting")
-                    writeFrameWithRetry(
-                        target,
-                        MagicshineProtocol.buildPresetFrame(
-                            com.lenne0815.karoomagicshine.MagicshineModule.MODULE_1,
-                            0,
-                        ),
-                    )
-                    delay(40)
-                    writeFrameWithRetry(
-                        target,
-                        MagicshineProtocol.buildPresetFrame(
-                            com.lenne0815.karoomagicshine.MagicshineModule.MODULE_2,
-                            0,
-                        ),
-                    )
-                    delay(60)
                     target.disconnect()
                     cancelActiveJobs()
                     clearActiveConnectionState(clearCachedPeripheral = true)
@@ -353,27 +344,28 @@ class MagicshineBleController(
     private suspend fun requestTelemetry(peripheral: Peripheral) {
         val telemetryStartedAtMs = System.currentTimeMillis()
         publishStatus("sync telemetry")
-        if (!writeFrameWithRetry(peripheral, "DE06A100A7ED")) return
-        delay(70)
-        if (!writeFrameWithRetry(peripheral, "DE07A601EF4FED")) return
-        delay(90)
-        if (!writeFrameWithRetry(
-                peripheral,
-                MagicshineProtocol.buildModeFrame(
-                    com.lenne0815.karoomagicshine.MagicshineModule.MODULE_1,
-                    com.lenne0815.karoomagicshine.MagicshineMode.STEADY,
-                ),
-            )
-        ) return
-        delay(70)
-        if (!writeFrameWithRetry(peripheral, "DE06A400A2ED")) return
-        waitUntil(timeoutMs = 140, stepMs = 10) {
-            lastBatteryStatusAtMs > telemetryStartedAtMs || lastTemperatureStatusAtMs > telemetryStartedAtMs
+        LupineProtocol.buildInitializationFrames().forEachIndexed { index, frameHex ->
+            if (!writeFrameWithRetry(peripheral, frameHex)) return
+            if (index < LupineProtocol.buildInitializationFrames().lastIndex) {
+                delay(70)
+            }
         }
-        writeFrameWithRetry(
-            peripheral,
-            MagicshineProtocol.buildPresetFrame(com.lenne0815.karoomagicshine.MagicshineModule.MODULE_1, 0),
-        )
+        waitUntil(timeoutMs = 140, stepMs = 10) {
+            lastTemperatureStatusAtMs > telemetryStartedAtMs
+        }
+    }
+
+    fun applyBeamMode(mode: LupineBeamMode): Boolean {
+        val peripheral = preferredPeripheral() ?: lastPeripheral ?: return false
+        if (peripheral.state.value !is ConnectionState.Connected) return false
+        val modeCommand = LupineProtocol.buildBeamCommand(mode)
+        if (modeCommand == null) {
+            publishStatus("command unavailable")
+            return false
+        }
+
+        send(modeCommand)
+        return true
     }
 
     private fun scheduleTelemetryBootstrap(peripheral: Peripheral) {
@@ -490,10 +482,21 @@ class MagicshineBleController(
     }
 
     private fun parseNotifyFrame(frameHex: String) {
-        MagicshineProtocol.parseBatteryPercent(frameHex)?.let {
-            publishBatteryStatus("$it%")
+        LupineProtocol.parseStatusSnapshot(frameHex)?.let { snapshot ->
+            ActualLightState.set(
+                appContext,
+                when (snapshot.outputTarget) {
+                    LupineLampOutputTarget.LOW -> ActualLightState.OutputTarget.LOW
+                    LupineLampOutputTarget.HIGH -> ActualLightState.OutputTarget.HIGH
+                    LupineLampOutputTarget.OFF -> ActualLightState.OutputTarget.OFF
+                    LupineLampOutputTarget.UNKNOWN -> ActualLightState.OutputTarget.UNKNOWN
+                },
+                snapshot.isEco,
+                snapshot.rawHex,
+            )
+            publishTemperatureStatus("SYNC")
+            publishStatus("connected")
         }
-        MagicshineProtocol.parseTemperatureCelsius(frameHex)?.let { publishTemperatureStatus("${it}C") }
     }
 
     private fun matchesSupportedFamily(name: String): Boolean =
@@ -635,6 +638,7 @@ class MagicshineBleController(
     private fun resetTelemetryStatus() {
         publishBatteryStatus("?")
         publishTemperatureStatus("?")
+        ActualLightState.clear(appContext)
     }
 
     private suspend fun sendInternal(frameHex: String) {

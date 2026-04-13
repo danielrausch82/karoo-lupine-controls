@@ -1,4 +1,4 @@
-package com.lenne0815.karoomagicshine.extension
+package com.karoo.lupinecontrols.extension
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -8,8 +8,8 @@ class LightActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val serviceIntent = when (intent.action) {
             ACTION_TOGGLE_100 ->
-                Intent(context, MagicshineControlService::class.java)
-                    .setAction(MagicshineControlService.ACTION_TOGGLE_100)
+                Intent(context, LupineControlService::class.java)
+                    .setAction(LupineControlService.ACTION_TOGGLE_100)
             else -> null
         } ?: return
 
@@ -17,10 +17,10 @@ class LightActionReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        private const val PREFS_NAME = "magicshine_prefs"
+        private const val PREFS_NAME = "lupine_prefs"
         private const val PREF_EXTENSION_TOGGLE_100 = "extension_toggle_100"
 
-        const val ACTION_TOGGLE_100 = "com.lenne0815.karoomagicshine.action.LIGHT_TOGGLE_100"
+        const val ACTION_TOGGLE_100 = "com.karoo.lupinecontrols.action.LUPINE_TOGGLE_PRIMARY"
 
         fun isToggleEnabled(context: Context): Boolean =
             context.applicationContext
