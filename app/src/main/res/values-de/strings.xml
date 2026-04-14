@@ -11,11 +11,11 @@
     <string name="searching_for_lupine_lights">Suche nach Lupine-Lampen</string>
     <string name="tap_connect_to_search">Tippe auf VERBINDEN, um nach einer Lampe zu suchen</string>
     <string name="tap_to_select">Zum Auswählen tippen</string>
-    <string name="hold_main_button_to_pair">Großen Taster zum Koppeln halten</string>
+    <string name="hold_main_button_to_pair">Großen Taster 3 Sekunden halten, um die Suche zu starten</string>
     <string name="hold_main_button_to_reconnect">Großen Taster zum Verbinden halten</string>
     <string name="hold_main_button_to_disconnect">Großen Taster 10 Sekunden zum Trennen halten</string>
     <string name="remote_pairing_title">Fernbedienung koppeln</string>
-    <string name="remote_pairing_body">Die Lampe zuerst in den Pairing-Modus versetzen. Dann den großen Taster zum Suchen halten. Wenn die Lampe in der Liste erscheint, dort antippen, um zu verbinden. Später den großen Taster erneut zum Wiederverbinden halten. Zum Trennen 10 Sekunden halten. Das Symbol wird nur nach erfolgreicher Verbindung blau und nach dem Trennen rot.</string>
+    <string name="remote_pairing_body">Die Lampe zuerst in den Pairing-Modus versetzen. Dann den großen Taster 3 Sekunden halten. Die App startet die Suche automatisch und verbindet sich mit der ersten gefundenen Lupine-Lampe. Zum Trennen den großen Taster 10 Sekunden halten. Das Symbol wird nur nach erfolgreicher Verbindung blau und nach dem Trennen rot.</string>
     <string name="active_label">AKTIV</string>
     <string name="profile_label">PROFIL</string>
     <string name="button_1">Taster 1</string>
@@ -59,14 +59,14 @@
     <string name="connection_message_in_progress">Verbindung zur Lampe wird aufgebaut</string>
     <string name="connection_message_auto_connecting">Lampe gefunden: %1$s. Verbindung wird aufgebaut.</string>
     <string name="connection_message_searching">Suche nach einer Lupine-Lampe im Pairing-Modus</string>
-    <string name="connection_message_device_found">Lampe gefunden. In der Liste antippen, um zu verbinden.</string>
+    <string name="connection_message_searching_action">Lampe im Pairing-Modus lassen, während die App automatisch sucht und verbindet.</string>
     <string name="connection_message_timeout">Verbindung nach 30 Sekunden beendet. Prüfe, ob die Lampe noch im Pairing-Modus ist, und versuche es erneut.</string>
     <string name="connection_message_permissions">Verbindung fehlgeschlagen. Bluetooth-Berechtigungen fehlen.</string>
-    <string name="connection_message_no_device">Verbindung fehlgeschlagen. Die ausgewählte Lampe wurde nicht gefunden. Pairing-Modus und Abstand prüfen.</string>
-    <string name="connection_message_select_device">Verbindung fehlgeschlagen. Lampe zuerst in den Pairing-Modus versetzen und dann aus der Liste auswählen.</string>
+    <string name="connection_message_no_device">Verbindung fehlgeschlagen. Keine Lupine-Lampe gefunden. Pairing-Modus und Abstand prüfen.</string>
+    <string name="connection_message_select_device">Verbindung fehlgeschlagen. Lampe zuerst in den Pairing-Modus versetzen.</string>
     <string name="connection_message_discovery_error">Lampensuche fehlgeschlagen: %1$s</string>
     <string name="connection_message_ble_error">Verbindung fehlgeschlagen: %1$s</string>
     <string name="toast_grant_bluetooth_permissions">Bitte zuerst Bluetooth-Berechtigungen erteilen</string>
-    <string name="toast_select_lamp_first">Bitte zuerst eine Lampe auswählen</string>
+    <string name="toast_select_lamp_first">Bitte die Lampe zuerst in den Pairing-Modus versetzen</string>
     <string name="toast_pairing_timeout">Koppeln nach 30 Sekunden automatisch beendet</string>
 </resources>

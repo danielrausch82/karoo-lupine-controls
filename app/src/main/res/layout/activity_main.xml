@@ -64,26 +64,12 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/txtChooserTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/select_lupine_light"
-                android:textSize="12sp" />
-
-            <TextView
                 android:id="@+id/txtChooserHint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:text="@string/searching_for_lupine"
                 android:textSize="10sp" />
-
-            <LinearLayout
-                android:id="@+id/layoutLampCandidates"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:orientation="vertical" />
         </LinearLayout>
 
         <LinearLayout

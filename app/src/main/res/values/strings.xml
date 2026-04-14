@@ -11,11 +11,11 @@
     <string name="searching_for_lupine_lights">Searching for Lupine lights</string>
     <string name="tap_connect_to_search">Tap CONNECT to search for a lamp</string>
     <string name="tap_to_select">Tap to select</string>
-    <string name="hold_main_button_to_pair">Hold the main button to pair</string>
+    <string name="hold_main_button_to_pair">Hold the main button for 3 seconds to start search</string>
     <string name="hold_main_button_to_reconnect">Hold the main button to reconnect</string>
     <string name="hold_main_button_to_disconnect">Hold the main button for 10 seconds to disconnect</string>
     <string name="remote_pairing_title">Remote pairing</string>
-    <string name="remote_pairing_body">Put the lamp into pairing mode first. Then hold the large button to search. If the lamp appears in the list, tap it to connect. Hold the large button again to reconnect later. Hold it for 10 seconds to disconnect. The icon turns blue only after a successful connection and red after disconnect.</string>
+    <string name="remote_pairing_body">Put the lamp into pairing mode first. Then hold the large button for 3 seconds. The app starts searching automatically and connects to the first Lupine lamp it finds. Hold the large button for 10 seconds to disconnect. The icon turns blue only after a successful connection and red after disconnect.</string>
     <string name="active_label">ACTIVE</string>
     <string name="profile_label">PROFILE</string>
     <string name="button_1">Button 1</string>
@@ -59,14 +59,14 @@
     <string name="connection_message_in_progress">Trying to connect to the lamp</string>
     <string name="connection_message_auto_connecting">Lamp found: %1$s. Connecting now.</string>
     <string name="connection_message_searching">Searching for a Lupine lamp in pairing mode</string>
-    <string name="connection_message_device_found">Lamp found. Tap it in the list to connect.</string>
+    <string name="connection_message_searching_action">Keep the lamp in pairing mode while the app searches and connects automatically.</string>
     <string name="connection_message_timeout">Connection stopped after 30 seconds. Check that the lamp is still in pairing mode and try again.</string>
     <string name="connection_message_permissions">Connection failed. Bluetooth permissions are missing.</string>
-    <string name="connection_message_no_device">Connection failed. The selected lamp could not be found. Check pairing mode and distance.</string>
-    <string name="connection_message_select_device">Connection failed. Put the lamp into pairing mode, then select it from the list first.</string>
+    <string name="connection_message_no_device">Connection failed. No Lupine lamp was found. Check pairing mode and distance.</string>
+    <string name="connection_message_select_device">Connection failed. Put the lamp into pairing mode first.</string>
     <string name="connection_message_discovery_error">Lamp search failed: %1$s</string>
     <string name="connection_message_ble_error">Connection failed: %1$s</string>
     <string name="toast_grant_bluetooth_permissions">Grant Bluetooth permissions first</string>
-    <string name="toast_select_lamp_first">Select a lamp first</string>
+    <string name="toast_select_lamp_first">Put the lamp into pairing mode first</string>
     <string name="toast_pairing_timeout">Pairing stopped after 30 seconds</string>
 </resources>

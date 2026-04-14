@@ -11,7 +11,6 @@ import android.os.IBinder
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.MotionEvent
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -55,6 +54,7 @@ class MainActivity : AppCompatActivity() {
         private const val PROFILE_MANUAL_ECO = 100
         private const val TAP_MAX_MS = 350L
         private const val LONG_PRESS_MS = 750L
+        private const val SEARCH_HOLD_MS = 3_000L
         private const val UNPAIR_PRESS_MS = 10_000L
         private const val PAIRING_TIMEOUT_MS = 30_000L
         private const val CONNECT_FEEDBACK_MS = 3_000L
@@ -65,7 +65,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var chooserGate: LinearLayout
     private lateinit var controlPanel: LinearLayout
     private lateinit var chooserHintView: TextView
-    private lateinit var lampCandidatesLayout: LinearLayout
     private lateinit var remoteT1Button: View
     private lateinit var remoteT2Button: View
     private lateinit var remoteT1Light: View
@@ -79,14 +78,15 @@ class MainActivity : AppCompatActivity() {
     private var requestedProfilePercent: Int = PROFILE_AUTO
     private var currentSelectedLampAddress: String? = null
     private var currentSelectedLampName: String? = null
-    private var lastRenderedCandidateSignature: String = ""
     private var discoveryRequestedFromUi: Boolean = false
     private var lastConnectionMessage: String? = null
     private var remoteT1DownAtMs: Long = 0L
     private var remoteT2DownAtMs: Long = 0L
+    private var searchStartedFromHold: Boolean = false
     private var activeRemoteFeedback: RemoteFeedback = RemoteFeedback.NONE
     private var remoteFeedbackUntilMs: Long = 0L
     private var pairingTimeoutJob: Job? = null
+    private var remoteSearchHoldJob: Job? = null
     private val serviceListener = object : LupineControlService.Listener {
         override fun onStatus(status: String) {
             runOnUiThread {
@@ -167,7 +167,6 @@ class MainActivity : AppCompatActivity() {
         chooserGate = findViewById(R.id.lampChooserGate)
         controlPanel = findViewById(R.id.layoutControlPanel)
         chooserHintView = findViewById(R.id.txtChooserHint)
-        lampCandidatesLayout = findViewById(R.id.layoutLampCandidates)
         remoteT1Button = findViewById(R.id.remoteT1Button)
         remoteT2Button = findViewById(R.id.remoteT2Button)
         remoteT1Light = findViewById(R.id.remoteT1Light)
@@ -210,6 +209,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         cancelPairingTimeout()
+        cancelRemoteSearchStart()
         if (isFinishing) {
             AppUiState.setActive(this, false)
         }
@@ -227,20 +227,13 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, getString(R.string.toast_grant_bluetooth_permissions), Toast.LENGTH_SHORT).show()
             return
         }
-        if (currentSelectedLampAddress == null) {
-            discoveryRequestedFromUi = true
-            currentDisplayStatus = "searching"
-            lastConnectionMessage = getString(R.string.connection_message_searching)
-            startPairingTimeout()
-            controlService?.startDiscovery(forceRestart = true)
-            refreshLampSelectionUi()
-            return
-        }
+        saveSelectedLamp(null, null)
+        controlService?.setPreferredAddress(null)
         discoveryRequestedFromUi = true
-        currentDisplayStatus = "connecting"
-        lastConnectionMessage = getString(R.string.connection_message_in_progress)
+        currentDisplayStatus = "searching"
+        lastConnectionMessage = getString(R.string.connection_message_searching)
         startPairingTimeout()
-        controlService?.connect()
+        controlService?.startDiscovery(forceRestart = true)
         refreshLampSelectionUi()
     }
 
@@ -298,9 +291,8 @@ class MainActivity : AppCompatActivity() {
         val effectiveDisplayStatus = when {
             connectionStatus == "connected" -> "connected"
             connectionStatus == "connecting" -> "connecting"
-            currentSelectedLampAddress != null &&
-                displayStatus in setOf("idle", "searching", "disconnected") -> "found"
-            currentSelectedLampAddress == null && !discoveryRequestedFromUi && displayStatus == "searching" -> "idle"
+            displayStatus == "found" -> "found"
+            !discoveryRequestedFromUi && displayStatus == "searching" -> "idle"
             else -> displayStatus
         }
         if (currentDisplayStatus != effectiveDisplayStatus) {
@@ -338,74 +330,40 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshLampSelectionUi() {
         val service = controlService
-        val selectedLamp = service?.currentSelectedLamp()
         val candidates = service?.currentLampCandidates() ?: emptyList()
-        maybeAutoSelectDiscoveredLamp(candidates)
+        maybeAutoConnectDiscoveredLamp(candidates)
         val preferredAddress = service?.currentPreferredAddress() ?: currentSelectedLampAddress
         currentSelectedLampAddress = preferredAddress
-        if (selectedLamp != null && currentSelectedLampName != selectedLamp.name) {
-            currentSelectedLampName = selectedLamp.name
-            prefs.edit().putString(PREF_SELECTED_LAMP_NAME, selectedLamp.name).apply()
-        }
-
-        val hasSelection = preferredAddress != null
-        chooserGate.visibility = if (hasSelection && candidates.isEmpty() && !discoveryRequestedFromUi) android.view.View.GONE else android.view.View.VISIBLE
+        chooserGate.visibility = android.view.View.VISIBLE
         controlPanel.visibility = android.view.View.VISIBLE
 
-        chooserHintView.text = if (candidates.isEmpty()) {
-            buildChooserHintText()
-        } else {
-            getString(R.string.connection_message_device_found)
-        }
-
-        val signature = candidates.joinToString("|") { "${it.address}:${it.name}" }
-        if (signature == lastRenderedCandidateSignature) return
-        lastRenderedCandidateSignature = signature
-
-        lampCandidatesLayout.removeAllViews()
-        candidates.forEach { candidate ->
-            val button = Button(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dpToPx(44),
-                ).also { it.topMargin = dpToPx(4) }
-                text = formatLampCandidate(candidate)
-                textSize = 11f
-                setOnClickListener {
-                    saveSelectedLamp(candidate.address, candidate.name)
-                    controlService?.setPreferredAddress(candidate.address)
-                    if (discoveryRequestedFromUi) {
-                        currentDisplayStatus = "connecting"
-                        lastConnectionMessage = getString(R.string.connection_message_in_progress)
-                        startPairingTimeout()
-                        controlService?.connect()
-                    }
-                    refreshLampSelectionUi()
-                }
-            }
-            lampCandidatesLayout.addView(button)
-        }
+        chooserHintView.text = buildChooserHintText()
     }
 
     private fun handleRemoteT1Touch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 remoteT1DownAtMs = SystemClock.elapsedRealtime()
+                searchStartedFromHold = false
+                if (currentConnectionStatus != "connected") {
+                    scheduleRemoteSearchStart()
+                }
                 return true
             }
             MotionEvent.ACTION_UP -> {
                 val durationMs = SystemClock.elapsedRealtime() - remoteT1DownAtMs
+                cancelRemoteSearchStart()
                 when {
                     currentConnectionStatus == "connected" && durationMs >= UNPAIR_PRESS_MS -> disconnectFromRemote()
                     currentConnectionStatus == "connected" && durationMs >= LONG_PRESS_MS -> switchLampOff()
                     currentConnectionStatus == "connected" && durationMs <= TAP_MAX_MS -> applyShortPress(OutputTarget.LOW)
-                    currentConnectionStatus != "connected" && durationMs >= LONG_PRESS_MS -> connectIfPermitted()
                 }
                 remoteT1Button.performClick()
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
                 remoteT1DownAtMs = 0L
+                cancelRemoteSearchStart()
                 return true
             }
         }
@@ -460,6 +418,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun disconnectFromRemote() {
         discoveryRequestedFromUi = false
+        cancelRemoteSearchStart()
         controlService?.stopRepeatingCommand()
         controlService?.disconnect()
         saveSelectedLamp(null, null)
@@ -536,19 +495,17 @@ class MainActivity : AppCompatActivity() {
     private fun buildChooserHintText(): String {
         val actionText = when {
             currentConnectionStatus == "connected" -> getString(R.string.hold_main_button_to_disconnect)
-            discoveryRequestedFromUi || isConnectionInProgress(currentConnectionStatus) -> getString(R.string.searching_for_lupine_lights)
-            currentSelectedLampAddress == null -> getString(R.string.hold_main_button_to_pair)
-            else -> getString(R.string.hold_main_button_to_reconnect)
+            discoveryRequestedFromUi || isConnectionInProgress(currentConnectionStatus) -> getString(R.string.connection_message_searching_action)
+            else -> getString(R.string.hold_main_button_to_pair)
         }
         val message = lastConnectionMessage?.takeIf { it.isNotBlank() } ?: return actionText
         return "$message\n$actionText"
     }
 
-    private fun maybeAutoSelectDiscoveredLamp(candidates: List<LampCandidate>) {
+    private fun maybeAutoConnectDiscoveredLamp(candidates: List<LampCandidate>) {
         if (!discoveryRequestedFromUi) return
-        if (currentSelectedLampAddress != null) return
         if (currentConnectionStatus == "connecting" || currentConnectionStatus == "connected") return
-        if (candidates.size != 1) return
+        if (candidates.isEmpty()) return
 
         val candidate = candidates.first()
         saveSelectedLamp(candidate.address, candidate.name)
@@ -556,6 +513,21 @@ class MainActivity : AppCompatActivity() {
         currentDisplayStatus = "connecting"
         lastConnectionMessage = getString(R.string.connection_message_auto_connecting, candidate.name)
         controlService?.connect()
+    }
+
+    private fun scheduleRemoteSearchStart() {
+        cancelRemoteSearchStart()
+        remoteSearchHoldJob = lifecycleScope.launch {
+            delay(SEARCH_HOLD_MS)
+            if (currentConnectionStatus == "connected") return@launch
+            searchStartedFromHold = true
+            connectIfPermitted()
+        }
+    }
+
+    private fun cancelRemoteSearchStart() {
+        remoteSearchHoldJob?.cancel()
+        remoteSearchHoldJob = null
     }
 
     private fun isConnectionInProgress(status: String): Boolean =
@@ -615,12 +587,4 @@ class MainActivity : AppCompatActivity() {
         else -> raw
     }
 
-    private fun formatLampCandidate(candidate: LampCandidate): String =
-        "${candidate.name} · ${shortAddress(candidate.address)}"
-
-    private fun shortAddress(address: String): String =
-        address.takeLast(8)
-
-    private fun dpToPx(dp: Int): Int =
-        (dp * resources.displayMetrics.density).toInt()
 }
