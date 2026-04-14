@@ -2,10 +2,10 @@
   "label": "Lupine Controls",
   "packageName": "com.karoo.lupinecontrols",
   "iconUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/icon.png",
-  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.6.apk",
-  "latestVersion": "Beta 1.6",
-  "latestVersionCode": 7,
+  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.7.apk",
+  "latestVersion": "Beta 1.7",
+  "latestVersionCode": 8,
   "developer": "Daniel Rausch",
   "description": "Control the Lupine SL Grano F from the Karoo app or the in-ride field, with ride-aware connection handling and a Lupine-specific control surface.",
-  "releaseNotes": "* Scan now focuses on Coded PHY advertising during pairing\n* Unnamed BLE candidates are no longer discarded before connection attempts\n* Connected devices are now validated against the Lupine service and characteristics\n* Updated published install metadata for the new beta"
+  "releaseNotes": "* Fresh pairing now keeps one stable BLE target per attempt instead of hopping across candidates\n* Added capture-backed protocol tests for the proven Lupine init and OFF notify frames\n* Published Beta 1.7 install metadata\n* Further BLE command and status decoding still depends on protocol details from Lupine because the remote session is encrypted after pairing"
 }

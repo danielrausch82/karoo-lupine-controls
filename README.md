@@ -12,11 +12,12 @@ Lupine Controls is a Karoo app plus ride-field extension for controlling the Lup
 
 ## Beta Status
 
-This repository now contains the first Lupine Controls beta release for Karoo.
+This repository now contains the current Lupine Controls beta release for Karoo.
 
 - Lupine app metadata and install manifest are published under the new package name
 - the Lupine BLE service and characteristic handles are integrated from packet captures
 - the app UI follows the Lupine remote workflow with connect, feedback, and ride-field support
+- fresh pairing now stays on one stable BLE target per attempt instead of switching across seen candidates
 
 ## Target Control Flow
 
@@ -29,6 +30,7 @@ This repository now contains the first Lupine Controls beta release for Karoo.
 ## Current Caveats
 
 - The BLE protocol migration is still in progress and not all Lupine notify states are decoded yet.
+- We still need protocol details from Lupine for the encrypted BLE session after pairing before low/high/off, feedback, and unpair behavior can be completed with confidence.
 - The Karoo UI is the primary target; generic phone layouts are not a focus yet.
 
 ## License

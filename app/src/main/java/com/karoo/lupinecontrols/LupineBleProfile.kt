@@ -11,6 +11,7 @@ object LupineBleProfile {
     const val INIT_ENABLE_UPLINK = "000104"
     const val INIT_SESSION = "00010307"
     const val STATUS_SNAPSHOT_PREFIX = "42"
+    const val KNOWN_OFF_STATUS_SNAPSHOT = "4200000000000000000000000000000000000000"
 }
 
 enum class LupineBeamMode {

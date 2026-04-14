@@ -88,6 +88,7 @@ class LupineBleController(
     @Volatile private var lastBatteryStatusAtMs: Long = 0L
     @Volatile private var lastTemperatureStatusAtMs: Long = 0L
     @Volatile private var preferredAddress: String? = prefs.getString(PREF_SELECTED_LAMP_ADDRESS, null)
+    @Volatile private var pendingPairingAddress: String? = null
     @Volatile private var notificationJob: Job? = null
     @Volatile private var repeatingCommandJob: Job? = null
     @Volatile private var connectJob: Job? = null
@@ -126,6 +127,7 @@ class LupineBleController(
             discoveryJob?.cancel()
             discoveryJob = null
             lastPeripheral = null
+            pendingPairingAddress = null
             lastTargetSeenAtMs = 0L
             seenCount = 0
             lastSeenTag = "none"
@@ -210,6 +212,7 @@ class LupineBleController(
         preferredAddress = address
         prefs.edit().putString(PREF_SELECTED_LAMP_ADDRESS, address).apply()
         if (address == null) {
+            pendingPairingAddress = null
             synchronized(candidateLock) {
                 rejectedCandidateAddresses.clear()
             }
@@ -219,6 +222,7 @@ class LupineBleController(
             publishStatus("idle")
             return
         }
+        pendingPairingAddress = null
         synchronized(candidateLock) {
             knownPeripherals[address]?.let { peripheral ->
                 lastPeripheral = peripheral
@@ -239,8 +243,37 @@ class LupineBleController(
             ?: lastPeripheral?.let { LampCandidate(it.address, it.name ?: "Lupine SL Grano F") }
     }
 
-    private fun firstKnownPeripheral(excludedAddresses: Set<String> = emptySet()): Peripheral? = synchronized(candidateLock) {
-        knownPeripherals.values.firstOrNull { it.address !in excludedAddresses }
+    private fun currentFreshPairingPeripheral(excludedAddresses: Set<String> = emptySet()): Peripheral? = synchronized(candidateLock) {
+        val pendingAddress = pendingPairingAddress ?: return@synchronized null
+        if (pendingAddress in excludedAddresses) {
+            pendingPairingAddress = null
+            return@synchronized null
+        }
+        knownPeripherals[pendingAddress]
+    }
+
+    private fun selectFreshPairingPeripheral(excludedAddresses: Set<String> = emptySet()): Peripheral? {
+        val selected = synchronized(candidateLock) {
+            val pendingAddress = pendingPairingAddress
+            if (pendingAddress != null && pendingAddress !in excludedAddresses) {
+                knownPeripherals[pendingAddress]?.let { return@synchronized it to false }
+            }
+            if (pendingAddress != null) {
+                pendingPairingAddress = null
+            }
+
+            val next = knownPeripherals.entries.firstOrNull { it.key !in excludedAddresses } ?: return@synchronized null
+            pendingPairingAddress = next.key
+            next.value to true
+        } ?: return null
+
+        val (peripheral, isNewTarget) = selected
+        if (isNewTarget) {
+            logDebug("fresh pairing target selected ${peripheral.debugLabel()} preferred=$preferredAddress")
+        }
+        lastPeripheral = peripheral
+        lastTargetSeenAtMs = System.currentTimeMillis()
+        return peripheral
     }
 
     private fun currentTargetPeripheral(excludedAddresses: Set<String> = emptySet()): Peripheral? {
@@ -250,11 +283,11 @@ class LupineBleController(
             return preferred
         }
         if (preferredAddress == null) {
-            val discovered = firstKnownPeripheral(excludedAddresses)
-            if (discovered != null) {
-                lastPeripheral = discovered
-                return discovered
+            currentFreshPairingPeripheral(excludedAddresses)?.let { peripheral ->
+                lastPeripheral = peripheral
+                return peripheral
             }
+            return selectFreshPairingPeripheral(excludedAddresses)
         }
         return lastPeripheral?.takeIf { it.address !in excludedAddresses }
     }
@@ -308,7 +341,7 @@ class LupineBleController(
                         synchronized(candidateLock) {
                             rejectedCandidateAddresses += target.address
                         }
-                        cleanupAfterConnectionFailure(target, keepDiscoveryRunning = preferredAddress == null)
+                        cleanupAfterConnectionFailure(target)
                         logWarn("connect failed for ${target.debugLabel()}", t)
                         if (preferredAddress != null) {
                             publishStatus("ble error: ${t::class.java.simpleName}")
@@ -465,7 +498,7 @@ class LupineBleController(
         }
     }
 
-    private suspend fun cleanupAfterConnectionFailure(peripheral: Peripheral, keepDiscoveryRunning: Boolean = false) {
+    private suspend fun cleanupAfterConnectionFailure(peripheral: Peripheral) {
         try {
             logWarn("cleanupAfterConnectionFailure ${peripheral.debugLabel()}")
             cancelActiveJobs()
@@ -473,20 +506,11 @@ class LupineBleController(
         } catch (t: Throwable) {
             logWarn("cleanup disconnect failed for ${peripheral.debugLabel()}", t)
         } finally {
-            synchronized(candidateLock) {
-                if (keepDiscoveryRunning) {
-                    knownCandidates.remove(peripheral.address)
-                    knownPeripherals.remove(peripheral.address)
-                    resolvingAddresses.remove(peripheral.address)
-                }
-            }
             if (lastPeripheral?.address == peripheral.address) {
                 lastPeripheral = null
             }
             clearActiveConnectionState(clearCachedPeripheral = false)
-            if (!keepDiscoveryRunning) {
-                stopDiscovery()
-            }
+            stopDiscovery()
             publishConnectionStatus("disconnected")
         }
     }
@@ -763,9 +787,17 @@ class LupineBleController(
                 resolvingAddresses.remove(address)
             }
             val isPreferredTarget = preferred != null && preferred == address
-            val shouldTrackAsTarget = isPreferredTarget || preferred == null || lastPeripheral == null
+            val pendingTargetAddress = pendingPairingAddress
+            val shouldTrackAsTarget = when {
+                isPreferredTarget -> true
+                preferred == null -> pendingTargetAddress == null || pendingTargetAddress == address
+                else -> lastPeripheral == null
+            }
             if (shouldTrackAsTarget) {
                 val isNewTarget = lastPeripheral?.address != address
+                if (preferred == null && pendingTargetAddress == null) {
+                    pendingPairingAddress = address
+                }
                 lastPeripheral = peripheral
                 lastTargetSeenAtMs = System.currentTimeMillis()
                 if (isNewTarget) {
@@ -909,6 +941,9 @@ class LupineBleController(
         observingAddress = null
         lastTargetSeenAtMs = 0L
         lastSeenTag = "none"
+        if (clearCachedPeripheral || preferredAddress == null) {
+            pendingPairingAddress = null
+        }
         if (clearCachedPeripheral) {
             lastPeripheral = null
         }
