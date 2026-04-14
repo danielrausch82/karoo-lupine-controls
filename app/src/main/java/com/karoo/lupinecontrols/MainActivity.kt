@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     private var controlService: LupineControlService? = null
     private lateinit var chooserGate: LinearLayout
     private lateinit var controlPanel: LinearLayout
+    private lateinit var remotePairingCard: LinearLayout
     private lateinit var chooserHintView: TextView
     private lateinit var remoteT1Button: View
     private lateinit var remoteT2Button: View
@@ -166,6 +167,7 @@ class MainActivity : AppCompatActivity() {
 
         chooserGate = findViewById(R.id.lampChooserGate)
         controlPanel = findViewById(R.id.layoutControlPanel)
+        remotePairingCard = findViewById(R.id.remotePairingCard)
         chooserHintView = findViewById(R.id.txtChooserHint)
         remoteT1Button = findViewById(R.id.remoteT1Button)
         remoteT2Button = findViewById(R.id.remoteT2Button)
@@ -336,6 +338,7 @@ class MainActivity : AppCompatActivity() {
         currentSelectedLampAddress = preferredAddress
         chooserGate.visibility = android.view.View.VISIBLE
         controlPanel.visibility = android.view.View.VISIBLE
+        remotePairingCard.visibility = if (currentConnectionStatus == "connected") android.view.View.GONE else android.view.View.VISIBLE
 
         chooserHintView.text = buildChooserHintText()
     }

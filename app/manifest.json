@@ -2,10 +2,10 @@
   "label": "Lupine Controls",
   "packageName": "com.karoo.lupinecontrols",
   "iconUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/icon.png",
-  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.3.apk",
-  "latestVersion": "Beta 1.3",
-  "latestVersionCode": 4,
+  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.4.apk",
+  "latestVersion": "Beta 1.4",
+  "latestVersionCode": 5,
   "developer": "Daniel Rausch",
   "description": "Control the Lupine SL Grano F from the Karoo app or the in-ride field, with ride-aware connection handling and a Lupine-specific control surface.",
-  "releaseNotes": "* Removed manual lamp selection from the UI flow\n* Holding the large button for 3 seconds now starts search automatically\n* The app connects automatically to the first found Lupine lamp\n* Updated user guidance and published install metadata for the new beta"
+  "releaseNotes": "* Moved the pairing guide below the remote control\n* Hide the pairing guide automatically once the lamp is connected\n* Kept the automatic 3-second hold pairing flow\n* Updated published install metadata for the new beta"
 }
