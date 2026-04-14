@@ -1,6 +1,11 @@
 package com.karoo.lupinecontrols.extension
 
 import android.Manifest
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -10,6 +15,7 @@ import com.karoo.lupinecontrols.LupineLampOutputTarget
 import com.karoo.lupinecontrols.LupineBeamMode
 import com.karoo.lupinecontrols.LupineBleProfile
 import com.karoo.lupinecontrols.LupineProtocol
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -17,9 +23,11 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import no.nordicsemi.kotlin.ble.client.android.CentralManager
 import no.nordicsemi.kotlin.ble.client.android.Peripheral
 import no.nordicsemi.kotlin.ble.client.android.native
@@ -49,11 +57,7 @@ class LupineBleController(
         private const val AWAIT_TARGET_STEP_MS = 100L
         private const val AWAIT_TARGET_RESTART_AFTER_MS = 4_000L
         private const val SEARCH_STATUS_PULSE_MS = 1_000L
-        val SUPPORTED_NAME_PREFIXES = setOf(
-            "Lupine",
-            "SL",
-            "ONSemiconduc",
-        )
+        private const val RESOLVE_PERIPHERAL_TIMEOUT_MS = 2_000L
         private const val PREFS_NAME = "lupine_prefs"
         private const val PREF_SELECTED_LAMP_ADDRESS = "selected_lamp_address"
     }
@@ -62,6 +66,7 @@ class LupineBleController(
     private val prefs by lazy { appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val centralManager by lazy { CentralManager.Factory.native(appContext, scope) }
+    private val bluetoothManager by lazy { appContext.getSystemService(BluetoothManager::class.java) }
 
     private val targetService = Uuid.parse(LupineBleProfile.PRIMARY_SERVICE_UUID)
     private val commandChar = Uuid.parse(LupineBleProfile.COMMAND_CHARACTERISTIC_UUID)
@@ -92,6 +97,8 @@ class LupineBleController(
     private val candidateLock = Any()
     private val knownCandidates = LinkedHashMap<String, LampCandidate>()
     private val knownPeripherals = LinkedHashMap<String, Peripheral>()
+    private val resolvingAddresses = HashSet<String>()
+    private val rejectedCandidateAddresses = LinkedHashSet<String>()
 
     private fun Peripheral.debugLabel(): String = "${name ?: "<unnamed>"}/${address}"
 
@@ -125,6 +132,8 @@ class LupineBleController(
             synchronized(candidateLock) {
                 knownCandidates.clear()
                 knownPeripherals.clear()
+                resolvingAddresses.clear()
+                rejectedCandidateAddresses.clear()
             }
         } else if (discoveryJob?.isActive == true) {
             logDebug("startDiscovery skipped: discovery already active preferred=$preferredAddress")
@@ -143,45 +152,45 @@ class LupineBleController(
             logDebug("discovery started preferred=$preferredAddress")
             publishStatus("searching")
             try {
-                centralManager
-                    .scan { Any { } }
-                    .collect { result ->
-                        val p = result.peripheral
-                        val name = p.name ?: "<unnamed>"
-                        val tag = "$name/${p.address}"
-                        seenCount += 1
-                        lastSeenTag = tag
+                val scanner = bluetoothManager?.adapter?.bluetoothLeScanner
+                if (scanner == null) {
+                    throw IllegalStateException("coded_scanner_unavailable")
+                }
 
-                        if (matchesSupportedFamily(name)) {
-                            val candidate = LampCandidate(address = p.address, name = name)
-                            val preferred = preferredAddress
-                            val knownBefore = synchronized(candidateLock) { knownCandidates.containsKey(p.address) }
-                            synchronized(candidateLock) {
-                                knownCandidates[p.address] = candidate
-                                knownPeripherals[p.address] = p
-                            }
-                            if (!knownBefore) {
-                                logDebug("supported device seen ${p.debugLabel()} preferred=$preferred")
-                            }
-                            val isPreferredTarget = preferred != null && preferred == p.address
-                            val shouldTrackAsTarget = isPreferredTarget || preferred == null || lastPeripheral == null
-                            if (shouldTrackAsTarget) {
-                                val isNewTarget = lastPeripheral?.address != p.address
-                                lastPeripheral = p
-                                lastTargetSeenAtMs = System.currentTimeMillis()
-                                if (isNewTarget) {
-                                    logDebug("tracking target ${p.debugLabel()} preferredMatch=$isPreferredTarget")
-                                }
-                                val shouldPublishFound =
-                                    isNewTarget ||
-                                        lastPublishedStatus == null ||
-                                        lastPublishedStatus in setOf("searching", "disconnected", "idle")
-                                if (shouldPublishFound) {
-                                    publishStatus("found")
-                                }
-                            }
+                val settings = ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .apply {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            setPhy(BluetoothDevice.PHY_LE_CODED)
+                            setLegacy(false)
                         }
                     }
+                    .build()
+
+                val callback = object : ScanCallback() {
+                    override fun onScanResult(callbackType: Int, result: ScanResult) {
+                        handleCodedScanResult(result)
+                    }
+
+                    override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                        results.forEach(::handleCodedScanResult)
+                    }
+
+                    override fun onScanFailed(errorCode: Int) {
+                        logWarn("coded phy scan failed errorCode=$errorCode")
+                        publishStatus("discovery error: ScanFailed$errorCode")
+                        publishConnectionStatus("discovery_error:ScanFailed$errorCode")
+                        discoveryJob?.cancel()
+                    }
+                }
+
+                logDebug("coded phy scan active legacy=false phy=${BluetoothDevice.PHY_LE_CODED}")
+                scanner.startScan(emptyList(), settings, callback)
+                try {
+                    awaitCancellation()
+                } finally {
+                    runCatching { scanner.stopScan(callback) }
+                }
             } catch (t: Throwable) {
                 logWarn("discovery failed preferred=$preferredAddress seenCount=$seenCount lastSeen=$lastSeenTag", t)
                 publishStatus("discovery error: ${t::class.java.simpleName}")
@@ -201,6 +210,9 @@ class LupineBleController(
         preferredAddress = address
         prefs.edit().putString(PREF_SELECTED_LAMP_ADDRESS, address).apply()
         if (address == null) {
+            synchronized(candidateLock) {
+                rejectedCandidateAddresses.clear()
+            }
             clearActiveConnectionState(clearCachedPeripheral = true)
             publishConnectionStatus("disconnected")
             resetTelemetryStatus()
@@ -227,24 +239,24 @@ class LupineBleController(
             ?: lastPeripheral?.let { LampCandidate(it.address, it.name ?: "Lupine SL Grano F") }
     }
 
-    private fun firstKnownPeripheral(): Peripheral? = synchronized(candidateLock) {
-        knownPeripherals.values.firstOrNull()
+    private fun firstKnownPeripheral(excludedAddresses: Set<String> = emptySet()): Peripheral? = synchronized(candidateLock) {
+        knownPeripherals.values.firstOrNull { it.address !in excludedAddresses }
     }
 
-    private fun currentTargetPeripheral(): Peripheral? {
+    private fun currentTargetPeripheral(excludedAddresses: Set<String> = emptySet()): Peripheral? {
         val preferred = preferredPeripheral()
-        if (preferred != null) {
+        if (preferred != null && preferred.address !in excludedAddresses) {
             lastPeripheral = preferred
             return preferred
         }
         if (preferredAddress == null) {
-            val discovered = firstKnownPeripheral()
+            val discovered = firstKnownPeripheral(excludedAddresses)
             if (discovered != null) {
                 lastPeripheral = discovered
                 return discovered
             }
         }
-        return lastPeripheral
+        return lastPeripheral?.takeIf { it.address !in excludedAddresses }
     }
 
     private fun preferredPeripheral(): Peripheral? {
@@ -259,10 +271,14 @@ class LupineBleController(
         }
         connectJob = scope.launch {
             operationMutex.withLock {
+                val attemptStartedAtMs = System.currentTimeMillis()
                 logDebug(
                     "connect begin preferred=$preferredAddress lastPeripheral=${lastPeripheral?.debugLabel()} seenCount=$seenCount",
                 )
                 publishConnectionStatus("connecting")
+                synchronized(candidateLock) {
+                    rejectedCandidateAddresses.clear()
+                }
                 val cached = currentTargetPeripheral()
                 val isConnected = cached?.state?.value is ConnectionState.Connected
                 if (!isConnected && cached == null) {
@@ -270,32 +286,42 @@ class LupineBleController(
                     startDiscovery()
                 }
 
-                val target = awaitTarget() ?: run {
-                    logWarn(
-                        "awaitTarget timeout preferred=$preferredAddress seenCount=$seenCount lastSeenTag=$lastSeenTag",
-                    )
-                    publishConnectionStatus("pairing_timeout")
-                    return@withLock
+                while (System.currentTimeMillis() - attemptStartedAtMs < AWAIT_TARGET_TIMEOUT_MS) {
+                    val excludedAddresses = synchronized(candidateLock) { rejectedCandidateAddresses.toSet() }
+                    val target = awaitTarget(excludedAddresses) ?: break
+                    logDebug("connect resolved target ${target.debugLabel()} state=${target.state.value::class.simpleName}")
+
+                    try {
+                        publishStatus("found")
+                        ensureConnected(target)
+                        if (preferredAddress == null) {
+                            setPreferredAddress(target.address)
+                        }
+                        publishStatus("connected")
+                        scheduleTelemetryBootstrap(target)
+                        synchronized(candidateLock) {
+                            rejectedCandidateAddresses.clear()
+                        }
+                        logDebug("connect completed ${target.debugLabel()}")
+                        return@withLock
+                    } catch (t: Throwable) {
+                        synchronized(candidateLock) {
+                            rejectedCandidateAddresses += target.address
+                        }
+                        cleanupAfterConnectionFailure(target, keepDiscoveryRunning = preferredAddress == null)
+                        logWarn("connect failed for ${target.debugLabel()}", t)
+                        if (preferredAddress != null) {
+                            publishStatus("ble error: ${t::class.java.simpleName}")
+                            publishConnectionStatus("ble_error:${t::class.java.simpleName}")
+                            return@withLock
+                        }
+                    }
                 }
 
-                logDebug("connect resolved target ${target.debugLabel()} state=${target.state.value::class.simpleName}")
-
-                if (preferredAddress == null) {
-                    setPreferredAddress(target.address)
-                }
-
-                try {
-                    publishStatus("found")
-                    ensureConnected(target)
-                    publishStatus("connected")
-                    scheduleTelemetryBootstrap(target)
-                    logDebug("connect completed ${target.debugLabel()}")
-                } catch (t: Throwable) {
-                    cleanupAfterConnectionFailure(target)
-                    logWarn("connect failed for ${target.debugLabel()}", t)
-                    publishStatus("ble error: ${t::class.java.simpleName}")
-                    publishConnectionStatus("ble_error:${t::class.java.simpleName}")
-                }
+                logWarn(
+                    "awaitTarget timeout preferred=$preferredAddress seenCount=$seenCount lastSeenTag=$lastSeenTag",
+                )
+                publishConnectionStatus("pairing_timeout")
             }
         }.also { job ->
             job.invokeOnCompletion {
@@ -422,6 +448,11 @@ class LupineBleController(
         }
         val commandCharacteristic = waitForCommandCharacteristic(peripheral)
         logDebug("command characteristic ${if (commandCharacteristic != null) "ready" else "missing"} for ${peripheral.debugLabel()}")
+        val notifyCharacteristic = findNotifyCharacteristic(peripheral)
+        logDebug("notify characteristic ${if (notifyCharacteristic != null) "ready" else "missing"} for ${peripheral.debugLabel()}")
+        if (commandCharacteristic == null || notifyCharacteristic == null) {
+            throw IllegalStateException("target_not_lupine")
+        }
         ensureNotificationObservation(peripheral)
         val ready = waitUntil(timeoutMs = 40, stepMs = 8) {
             notificationJob?.isActive == true && findCommandCharacteristic(peripheral) != null
@@ -429,9 +460,12 @@ class LupineBleController(
         logDebug(
             "ensureConnected ready=$ready notifyActive=${notificationJob?.isActive == true} for ${peripheral.debugLabel()}",
         )
+        if (!ready) {
+            throw IllegalStateException("target_not_lupine")
+        }
     }
 
-    private suspend fun cleanupAfterConnectionFailure(peripheral: Peripheral) {
+    private suspend fun cleanupAfterConnectionFailure(peripheral: Peripheral, keepDiscoveryRunning: Boolean = false) {
         try {
             logWarn("cleanupAfterConnectionFailure ${peripheral.debugLabel()}")
             cancelActiveJobs()
@@ -439,11 +473,20 @@ class LupineBleController(
         } catch (t: Throwable) {
             logWarn("cleanup disconnect failed for ${peripheral.debugLabel()}", t)
         } finally {
+            synchronized(candidateLock) {
+                if (keepDiscoveryRunning) {
+                    knownCandidates.remove(peripheral.address)
+                    knownPeripherals.remove(peripheral.address)
+                    resolvingAddresses.remove(peripheral.address)
+                }
+            }
             if (lastPeripheral?.address == peripheral.address) {
                 lastPeripheral = null
             }
             clearActiveConnectionState(clearCachedPeripheral = false)
-            stopDiscovery()
+            if (!keepDiscoveryRunning) {
+                stopDiscovery()
+            }
             publishConnectionStatus("disconnected")
         }
     }
@@ -499,8 +542,8 @@ class LupineBleController(
         }
     }
 
-    private suspend fun awaitTarget(): Peripheral? {
-        var p = currentTargetPeripheral()
+    private suspend fun awaitTarget(excludedAddresses: Set<String> = emptySet()): Peripheral? {
+        var p = currentTargetPeripheral(excludedAddresses)
         if (p?.state?.value is ConnectionState.Connected) return p
         if (p != null) {
             logDebug("awaitTarget using cached ${p.debugLabel()}")
@@ -518,7 +561,7 @@ class LupineBleController(
         var restartedDiscovery = false
         while (System.currentTimeMillis() - startedAtMs < AWAIT_TARGET_TIMEOUT_MS) {
             delay(AWAIT_TARGET_STEP_MS)
-            p = currentTargetPeripheral()
+            p = currentTargetPeripheral(excludedAddresses)
             if (p?.state?.value is ConnectionState.Connected || p != null) {
                 logDebug("awaitTarget resolved ${p.debugLabel()} after ${System.currentTimeMillis() - startedAtMs}ms")
                 return p
@@ -535,7 +578,7 @@ class LupineBleController(
             }
         }
         logWarn("awaitTarget exhausted timeout preferred=$preferredAddress seenCount=$seenCount lastSeen=$lastSeenTag")
-        return currentTargetPeripheral()
+        return currentTargetPeripheral(excludedAddresses)
     }
 
     private suspend fun writeFrame(peripheral: Peripheral, frameHex: String) {
@@ -661,8 +704,82 @@ class LupineBleController(
         logDebug("parseNotifyFrame ignored raw=$frameHex")
     }
 
-    private fun matchesSupportedFamily(name: String): Boolean =
-        SUPPORTED_NAME_PREFIXES.any { prefix -> name.startsWith(prefix, ignoreCase = true) }
+    private fun handleCodedScanResult(result: ScanResult) {
+        val device = result.device ?: return
+        val address = device.address ?: return
+        val name = result.scanRecord?.deviceName ?: device.name ?: "<unnamed>"
+        val primaryPhy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) result.primaryPhy else BluetoothDevice.PHY_LE_CODED
+        val secondaryPhy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) result.secondaryPhy else BluetoothDevice.PHY_LE_CODED
+        val isCoded = primaryPhy == BluetoothDevice.PHY_LE_CODED || secondaryPhy == BluetoothDevice.PHY_LE_CODED
+        val serviceAdvertised = result.scanRecord
+            ?.serviceUuids
+            ?.any { it.uuid.toString().equals(targetService.toString(), ignoreCase = true) }
+            ?: false
+        val tag = "$name/$address"
+
+        seenCount += 1
+        lastSeenTag = tag
+
+        if (!isCoded) {
+            return
+        }
+
+        val displayName = if (name == "<unnamed>") "Lupine candidate" else name
+        val isKnownOrResolving = synchronized(candidateLock) {
+            knownPeripherals.containsKey(address) || knownCandidates.containsKey(address) || resolvingAddresses.contains(address)
+        }
+        if (!isKnownOrResolving) {
+            logDebug(
+                "coded advertiser seen $tag primaryPhy=$primaryPhy secondaryPhy=$secondaryPhy serviceAdvertised=$serviceAdvertised",
+            )
+            synchronized(candidateLock) {
+                knownCandidates[address] = LampCandidate(address = address, name = displayName)
+                resolvingAddresses += address
+            }
+            publishStatus("found")
+            scope.launch {
+                resolvePeripheralForAddress(address, displayName, serviceAdvertised)
+            }
+        }
+    }
+
+    private suspend fun resolvePeripheralForAddress(address: String, displayName: String, serviceAdvertised: Boolean) {
+        try {
+            val peripheral = withTimeoutOrNull(RESOLVE_PERIPHERAL_TIMEOUT_MS) {
+                centralManager.scan {
+                    Address(address)
+                }.firstOrNull()?.peripheral
+            }
+
+            if (peripheral == null) {
+                logWarn("coded advertiser unresolved $displayName/$address serviceAdvertised=$serviceAdvertised")
+                return
+            }
+
+            val preferred = preferredAddress
+            synchronized(candidateLock) {
+                knownCandidates[address] = LampCandidate(address = address, name = displayName)
+                knownPeripherals[address] = peripheral
+                resolvingAddresses.remove(address)
+            }
+            val isPreferredTarget = preferred != null && preferred == address
+            val shouldTrackAsTarget = isPreferredTarget || preferred == null || lastPeripheral == null
+            if (shouldTrackAsTarget) {
+                val isNewTarget = lastPeripheral?.address != address
+                lastPeripheral = peripheral
+                lastTargetSeenAtMs = System.currentTimeMillis()
+                if (isNewTarget) {
+                    logDebug(
+                        "tracking coded target ${peripheral.debugLabel()} preferredMatch=$isPreferredTarget serviceAdvertised=$serviceAdvertised",
+                    )
+                }
+            }
+        } finally {
+            synchronized(candidateLock) {
+                resolvingAddresses.remove(address)
+            }
+        }
+    }
 
     private suspend fun waitUntil(
         timeoutMs: Long,
