@@ -2,10 +2,10 @@
   "label": "Lupine Controls",
   "packageName": "com.karoo.lupinecontrols",
   "iconUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/icon.png",
-  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.4.apk",
-  "latestVersion": "Beta 1.4",
-  "latestVersionCode": 5,
+  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.5.apk",
+  "latestVersion": "Beta 1.5",
+  "latestVersionCode": 6,
   "developer": "Daniel Rausch",
   "description": "Control the Lupine SL Grano F from the Karoo app or the in-ride field, with ride-aware connection handling and a Lupine-specific control surface.",
-  "releaseNotes": "* Moved the pairing guide below the remote control\n* Hide the pairing guide automatically once the lamp is connected\n* Kept the automatic 3-second hold pairing flow\n* Updated published install metadata for the new beta"
+  "releaseNotes": "* Stabilized the automatic search and connect flow for Lupine pairing\n* Added detailed BLE diagnostic logging for connection troubleshooting\n* Added an on-device protocol log button at the bottom of the app\n* Updated published install metadata for the new beta"
 }

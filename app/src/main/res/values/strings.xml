@@ -16,6 +16,12 @@
     <string name="hold_main_button_to_disconnect">Hold the main button for 10 seconds to disconnect</string>
     <string name="remote_pairing_title">Remote pairing</string>
     <string name="remote_pairing_body">Put the lamp into pairing mode first. Then hold the large button for 3 seconds. The app starts searching automatically and connects to the first Lupine lamp it finds. Hold the large button for 10 seconds to disconnect. The icon turns blue only after a successful connection and red after disconnect.</string>
+    <string name="protocol_log_title">BLE protocol log</string>
+    <string name="protocol_log_hint">This view shows the internal BLE protocol and connection trace from the app. Use it during pairing on the Karoo.</string>
+    <string name="protocol_log_clear">Clear</string>
+    <string name="protocol_log_empty">No BLE protocol entries yet.</string>
+    <string name="protocol_log_show">Show protocol log</string>
+    <string name="protocol_log_hide">Hide protocol log</string>
     <string name="active_label">ACTIVE</string>
     <string name="profile_label">PROFILE</string>
     <string name="button_1">Button 1</string>

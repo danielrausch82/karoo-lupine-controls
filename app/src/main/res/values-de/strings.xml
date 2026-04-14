@@ -16,6 +16,12 @@
     <string name="hold_main_button_to_disconnect">Großen Taster 10 Sekunden zum Trennen halten</string>
     <string name="remote_pairing_title">Fernbedienung koppeln</string>
     <string name="remote_pairing_body">Die Lampe zuerst in den Pairing-Modus versetzen. Dann den großen Taster 3 Sekunden halten. Die App startet die Suche automatisch und verbindet sich mit der ersten gefundenen Lupine-Lampe. Zum Trennen den großen Taster 10 Sekunden halten. Das Symbol wird nur nach erfolgreicher Verbindung blau und nach dem Trennen rot.</string>
+    <string name="protocol_log_title">BLE-Protokoll</string>
+    <string name="protocol_log_hint">Diese Ansicht zeigt das interne BLE-Protokoll und die Verbindungsfolge der App. Beim Koppeln auf dem Karoo hier nachsehen.</string>
+    <string name="protocol_log_clear">Leeren</string>
+    <string name="protocol_log_empty">Noch keine BLE-Protokolleinträge.</string>
+    <string name="protocol_log_show">Protokoll anzeigen</string>
+    <string name="protocol_log_hide">Protokoll ausblenden</string>
     <string name="active_label">AKTIV</string>
     <string name="profile_label">PROFIL</string>
     <string name="button_1">Taster 1</string>

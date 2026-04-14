@@ -41,6 +41,11 @@ class LupineControlService : Service() {
         const val ACTION_FIELD_HIDDEN = "com.karoo.lupinecontrols.action.FIELD_HIDDEN"
     }
 
+    private fun logDebug(message: String) {
+        BleDiagnosticLog.debug(TAG, message)
+        Log.d(TAG, message)
+    }
+
     private val binder = LocalBinder()
     private val listeners = linkedSetOf<Listener>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -81,18 +86,18 @@ class LupineControlService : Service() {
     private fun markFieldVisible() {
         val wasInvisible = activeFieldViews == 0
         activeFieldViews += 1
-        Log.d(TAG, "field visible count=$activeFieldViews")
+        logDebug("field visible count=$activeFieldViews")
         if (wasInvisible && !AppUiState.isActive(this) && extensionReady) {
             ensureConnectedInternal(forceRestart = false, delayMs = 250)
         } else if (wasInvisible && !AppUiState.isActive(this)) {
             pendingAutoConnect = true
-            Log.d(TAG, "field visible before extension ready; deferring connect")
+            logDebug("field visible before extension ready; deferring connect")
         }
     }
 
     private fun markFieldHidden() {
         activeFieldViews = (activeFieldViews - 1).coerceAtLeast(0)
-        Log.d(TAG, "field hidden count=$activeFieldViews")
+        logDebug("field hidden count=$activeFieldViews")
         if (activeFieldViews == 0) {
             stopRepeatingCommand()
             disconnect()
@@ -102,7 +107,7 @@ class LupineControlService : Service() {
 
     private fun markExtensionReady() {
         extensionReady = true
-        Log.d(TAG, "extension ready")
+        logDebug("extension ready")
         if (pendingAutoConnect && activeFieldViews > 0 && !AppUiState.isActive(this)) {
             pendingAutoConnect = false
             ensureConnectedInternal(forceRestart = false, delayMs = 250)
@@ -130,15 +135,15 @@ class LupineControlService : Service() {
         cancelImmediateWork()
         if (controller.hasLiveConnection() || controller.hasConnectInFlight()) return
         if (controller.currentPreferredAddress() == null) {
-            Log.d(TAG, "ensureConnected aborted: no preferred lamp")
+            logDebug("ensureConnected aborted: no preferred lamp")
             LightFieldState.set(this, LightFieldState.STATUS_NO_DEVICE)
             return
         }
-        Log.d(TAG, "ensureConnected queued forceRestart=$forceRestart delayMs=$delayMs")
+        logDebug("ensureConnected queued forceRestart=$forceRestart delayMs=$delayMs")
         LightFieldState.set(this, LightFieldState.STATUS_SEARCHING)
         controller.startDiscovery(forceRestart = forceRestart)
         pendingConnectJob = scope.launch {
-            Log.d(TAG, "pending connect fired forceRestart=$forceRestart")
+            logDebug("pending connect fired forceRestart=$forceRestart")
             delay(delayMs)
             controller.connect()
         }.also { job ->
@@ -232,11 +237,11 @@ class LupineControlService : Service() {
         cancelImmediateWork()
         if (controller.hasLiveConnection() || controller.hasConnectInFlight()) return
         if (controller.currentPreferredAddress() == null) {
-            Log.d(TAG, "extension ensureConnected aborted: no preferred lamp")
+            logDebug("extension ensureConnected aborted: no preferred lamp")
             LightFieldState.set(this, LightFieldState.STATUS_NO_DEVICE)
             return
         }
-        Log.d(TAG, "extension ensureConnected: start discovery first")
+        logDebug("extension ensureConnected: start discovery first")
         LightFieldState.set(this, LightFieldState.STATUS_SEARCHING)
         controller.startDiscovery(forceRestart = true)
         pendingConnectJob = scope.launch {
@@ -245,13 +250,13 @@ class LupineControlService : Service() {
                 if (controller.hasLiveConnection() || controller.hasConnectInFlight()) return@launch
                 val selected = controller.currentSelectedLamp()
                 if (selected?.address == controller.currentPreferredAddress()) {
-                    Log.d(TAG, "extension ensureConnected: preferred lamp found, connecting")
+                    logDebug("extension ensureConnected: preferred lamp found, connecting")
                     controller.connect()
                     return@launch
                 }
                 delay(500)
             }
-            Log.d(TAG, "extension ensureConnected: timeout waiting for lamp, connecting anyway")
+            logDebug("extension ensureConnected: timeout waiting for lamp, connecting anyway")
             controller.connect()
         }.also { job ->
             job.invokeOnCompletion {
@@ -266,7 +271,7 @@ class LupineControlService : Service() {
                 if (controller.currentPreferredAddress() == null) return@launch
                 if (controller.hasLiveConnection()) return@launch
                 if (controller.hasConnectInFlight()) return@repeat
-                Log.d(TAG, "extension retry ${attempt + 1}")
+                logDebug("extension retry ${attempt + 1}")
                 ensureConnectedInternal(forceRestart = true, delayMs = 900)
             }
         }.also { job ->

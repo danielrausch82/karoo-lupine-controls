@@ -22,9 +22,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
 import com.karoo.lupinecontrols.LupineBeamMode
-import com.karoo.lupinecontrols.extension.LampCandidate
 import com.karoo.lupinecontrols.extension.ActualLightState
 import com.karoo.lupinecontrols.extension.AppUiState
+import com.karoo.lupinecontrols.extension.BleDiagnosticLog
 import com.karoo.lupinecontrols.extension.LupineControlService
 import com.karoo.lupinecontrols.extension.SharedLightState
 import kotlinx.coroutines.Job
@@ -66,6 +66,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var controlPanel: LinearLayout
     private lateinit var remotePairingCard: LinearLayout
     private lateinit var chooserHintView: TextView
+    private lateinit var protocolPanel: LinearLayout
+    private lateinit var protocolToggleButton: TextView
+    private lateinit var protocolLogText: TextView
+    private lateinit var protocolClearButton: TextView
     private lateinit var remoteT1Button: View
     private lateinit var remoteT2Button: View
     private lateinit var remoteT1Light: View
@@ -88,6 +92,8 @@ class MainActivity : AppCompatActivity() {
     private var remoteFeedbackUntilMs: Long = 0L
     private var pairingTimeoutJob: Job? = null
     private var remoteSearchHoldJob: Job? = null
+    private var protocolVisible: Boolean = false
+    private var lastProtocolLogSnapshot: String = ""
     private val serviceListener = object : LupineControlService.Listener {
         override fun onStatus(status: String) {
             runOnUiThread {
@@ -169,6 +175,10 @@ class MainActivity : AppCompatActivity() {
         controlPanel = findViewById(R.id.layoutControlPanel)
         remotePairingCard = findViewById(R.id.remotePairingCard)
         chooserHintView = findViewById(R.id.txtChooserHint)
+        protocolPanel = findViewById(R.id.protocolPanel)
+        protocolToggleButton = findViewById(R.id.protocolToggleButton)
+        protocolLogText = findViewById(R.id.protocolLogText)
+        protocolClearButton = findViewById(R.id.protocolClearButton)
         remoteT1Button = findViewById(R.id.remoteT1Button)
         remoteT2Button = findViewById(R.id.remoteT2Button)
         remoteT1Light = findViewById(R.id.remoteT1Light)
@@ -185,14 +195,29 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             while (true) {
                 refreshUiFromController()
+                refreshProtocolLogUi()
                 delay(500)
             }
         }
 
+        protocolToggleButton.setOnClickListener {
+            protocolVisible = !protocolVisible
+            updateProtocolSectionUi()
+            if (protocolVisible) {
+                refreshProtocolLogUi(force = true)
+            }
+        }
+        protocolClearButton.setOnClickListener {
+            BleDiagnosticLog.clear()
+            lastProtocolLogSnapshot = ""
+            refreshProtocolLogUi(force = true)
+        }
         remoteT1Button.setOnTouchListener { _, event -> handleRemoteT1Touch(event) }
         remoteT2Button.setOnTouchListener { _, event -> handleRemoteT2Touch(event) }
         updateOutputControls()
         updateStatusCards()
+        updateProtocolSectionUi()
+        refreshProtocolLogUi(force = true)
         refreshLampSelectionUi()
     }
 
@@ -202,6 +227,7 @@ class MainActivity : AppCompatActivity() {
         refreshRequestedProfile()
         updateOutputControls()
         updateStatusCards()
+        refreshProtocolLogUi(force = true)
     }
 
     override fun onPause() {
@@ -236,6 +262,7 @@ class MainActivity : AppCompatActivity() {
         lastConnectionMessage = getString(R.string.connection_message_searching)
         startPairingTimeout()
         controlService?.startDiscovery(forceRestart = true)
+        controlService?.connect()
         refreshLampSelectionUi()
     }
 
@@ -294,7 +321,6 @@ class MainActivity : AppCompatActivity() {
             connectionStatus == "connected" -> "connected"
             connectionStatus == "connecting" -> "connecting"
             displayStatus == "found" -> "found"
-            !discoveryRequestedFromUi && displayStatus == "searching" -> "idle"
             else -> displayStatus
         }
         if (currentDisplayStatus != effectiveDisplayStatus) {
@@ -332,15 +358,41 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshLampSelectionUi() {
         val service = controlService
-        val candidates = service?.currentLampCandidates() ?: emptyList()
-        maybeAutoConnectDiscoveredLamp(candidates)
-        val preferredAddress = service?.currentPreferredAddress() ?: currentSelectedLampAddress
+        val selectedLamp = service?.currentSelectedLamp()
+        val preferredAddress = service?.currentPreferredAddress() ?: selectedLamp?.address ?: currentSelectedLampAddress
         currentSelectedLampAddress = preferredAddress
+        currentSelectedLampName = selectedLamp?.name ?: currentSelectedLampName
         chooserGate.visibility = android.view.View.VISIBLE
         controlPanel.visibility = android.view.View.VISIBLE
         remotePairingCard.visibility = if (currentConnectionStatus == "connected") android.view.View.GONE else android.view.View.VISIBLE
 
         chooserHintView.text = buildChooserHintText()
+    }
+
+    private fun updateProtocolSectionUi() {
+        val background = if (protocolVisible) R.drawable.bg_module_selected else R.drawable.bg_module_idle
+        val textColor = if (protocolVisible) {
+            ResourcesCompat.getColor(resources, R.color.white, theme)
+        } else {
+            ResourcesCompat.getColor(resources, R.color.karoo_ui_text_dark, theme)
+        }
+        protocolToggleButton.setBackgroundResource(background)
+        protocolToggleButton.setTextColor(textColor)
+        protocolToggleButton.text = getString(
+            if (protocolVisible) R.string.protocol_log_hide else R.string.protocol_log_show,
+        )
+        protocolPanel.visibility = if (protocolVisible) View.VISIBLE else View.GONE
+    }
+
+    private fun refreshProtocolLogUi(force: Boolean = false) {
+        val snapshot = BleDiagnosticLog.snapshotText()
+        if (!force && snapshot == lastProtocolLogSnapshot) return
+        lastProtocolLogSnapshot = snapshot
+        protocolLogText.text = if (snapshot.isBlank()) {
+            getString(R.string.protocol_log_empty)
+        } else {
+            snapshot
+        }
     }
 
     private fun handleRemoteT1Touch(event: MotionEvent): Boolean {
@@ -503,19 +555,6 @@ class MainActivity : AppCompatActivity() {
         }
         val message = lastConnectionMessage?.takeIf { it.isNotBlank() } ?: return actionText
         return "$message\n$actionText"
-    }
-
-    private fun maybeAutoConnectDiscoveredLamp(candidates: List<LampCandidate>) {
-        if (!discoveryRequestedFromUi) return
-        if (currentConnectionStatus == "connecting" || currentConnectionStatus == "connected") return
-        if (candidates.isEmpty()) return
-
-        val candidate = candidates.first()
-        saveSelectedLamp(candidate.address, candidate.name)
-        controlService?.setPreferredAddress(candidate.address)
-        currentDisplayStatus = "connecting"
-        lastConnectionMessage = getString(R.string.connection_message_auto_connecting, candidate.name)
-        controlService?.connect()
     }
 
     private fun scheduleRemoteSearchStart() {

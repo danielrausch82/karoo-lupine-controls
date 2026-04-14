@@ -45,6 +45,10 @@ class LupineBleController(
 ) {
     companion object {
         private const val TAG = "LupineBle"
+        private const val AWAIT_TARGET_TIMEOUT_MS = 12_000L
+        private const val AWAIT_TARGET_STEP_MS = 100L
+        private const val AWAIT_TARGET_RESTART_AFTER_MS = 4_000L
+        private const val SEARCH_STATUS_PULSE_MS = 1_000L
         val SUPPORTED_NAME_PREFIXES = setOf(
             "Lupine",
             "SL",
@@ -89,12 +93,29 @@ class LupineBleController(
     private val knownCandidates = LinkedHashMap<String, LampCandidate>()
     private val knownPeripherals = LinkedHashMap<String, Peripheral>()
 
+    private fun Peripheral.debugLabel(): String = "${name ?: "<unnamed>"}/${address}"
+
+    private fun logDebug(message: String) {
+        BleDiagnosticLog.debug(TAG, message)
+        Log.d(TAG, message)
+    }
+
+    private fun logWarn(message: String, throwable: Throwable? = null) {
+        BleDiagnosticLog.warn(TAG, message, throwable)
+        if (throwable == null) {
+            Log.w(TAG, message)
+        } else {
+            Log.w(TAG, message, throwable)
+        }
+    }
+
     fun startDiscovery(forceRestart: Boolean = false) {
-        clearStalePublishedConnectionState()
         if (!forceRestart && lastPeripheral?.state?.value is ConnectionState.Connected) {
+            logDebug("startDiscovery skipped: already connected to ${lastPeripheral?.debugLabel()}")
             return
         }
         if (forceRestart) {
+            logDebug("startDiscovery forceRestart preferred=$preferredAddress")
             discoveryJob?.cancel()
             discoveryJob = null
             lastPeripheral = null
@@ -106,9 +127,11 @@ class LupineBleController(
                 knownPeripherals.clear()
             }
         } else if (discoveryJob?.isActive == true) {
+            logDebug("startDiscovery skipped: discovery already active preferred=$preferredAddress")
             return
         }
         if (!hasBlePermissions()) {
+            logWarn("startDiscovery aborted: missing BLE permissions")
             publishStatus("missing bluetooth permissions")
             publishConnectionStatus("permissions")
             return
@@ -117,6 +140,7 @@ class LupineBleController(
         discoveryJob = scope.launch {
             seenCount = 0
             lastSeenTag = "none"
+            logDebug("discovery started preferred=$preferredAddress")
             publishStatus("searching")
             try {
                 centralManager
@@ -131,14 +155,23 @@ class LupineBleController(
                         if (matchesSupportedFamily(name)) {
                             val candidate = LampCandidate(address = p.address, name = name)
                             val preferred = preferredAddress
+                            val knownBefore = synchronized(candidateLock) { knownCandidates.containsKey(p.address) }
                             synchronized(candidateLock) {
                                 knownCandidates[p.address] = candidate
                                 knownPeripherals[p.address] = p
                             }
-                            if (preferred != null && preferred == p.address) {
+                            if (!knownBefore) {
+                                logDebug("supported device seen ${p.debugLabel()} preferred=$preferred")
+                            }
+                            val isPreferredTarget = preferred != null && preferred == p.address
+                            val shouldTrackAsTarget = isPreferredTarget || preferred == null || lastPeripheral == null
+                            if (shouldTrackAsTarget) {
                                 val isNewTarget = lastPeripheral?.address != p.address
                                 lastPeripheral = p
                                 lastTargetSeenAtMs = System.currentTimeMillis()
+                                if (isNewTarget) {
+                                    logDebug("tracking target ${p.debugLabel()} preferredMatch=$isPreferredTarget")
+                                }
                                 val shouldPublishFound =
                                     isNewTarget ||
                                         lastPublishedStatus == null ||
@@ -150,6 +183,7 @@ class LupineBleController(
                         }
                     }
             } catch (t: Throwable) {
+                logWarn("discovery failed preferred=$preferredAddress seenCount=$seenCount lastSeen=$lastSeenTag", t)
                 publishStatus("discovery error: ${t::class.java.simpleName}")
                 publishConnectionStatus("discovery_error:${t::class.java.simpleName}")
             }
@@ -157,11 +191,13 @@ class LupineBleController(
     }
 
     fun stopDiscovery() {
+        logDebug("discovery stopped")
         discoveryJob?.cancel()
         discoveryJob = null
     }
 
     fun setPreferredAddress(address: String?) {
+        logDebug("setPreferredAddress old=$preferredAddress new=$address")
         preferredAddress = address
         prefs.edit().putString(PREF_SELECTED_LAMP_ADDRESS, address).apply()
         if (address == null) {
@@ -191,35 +227,61 @@ class LupineBleController(
             ?: lastPeripheral?.let { LampCandidate(it.address, it.name ?: "Lupine SL Grano F") }
     }
 
+    private fun firstKnownPeripheral(): Peripheral? = synchronized(candidateLock) {
+        knownPeripherals.values.firstOrNull()
+    }
+
+    private fun currentTargetPeripheral(): Peripheral? {
+        val preferred = preferredPeripheral()
+        if (preferred != null) {
+            lastPeripheral = preferred
+            return preferred
+        }
+        if (preferredAddress == null) {
+            val discovered = firstKnownPeripheral()
+            if (discovered != null) {
+                lastPeripheral = discovered
+                return discovered
+            }
+        }
+        return lastPeripheral
+    }
+
     private fun preferredPeripheral(): Peripheral? {
         val selected = preferredAddress ?: return null
         return synchronized(candidateLock) { knownPeripherals[selected] } ?: lastPeripheral?.takeIf { it.address == selected }
     }
 
     fun connect() {
-        if (connectJob?.isActive == true) return
+        if (connectJob?.isActive == true) {
+            logDebug("connect skipped: job already active preferred=$preferredAddress")
+            return
+        }
         connectJob = scope.launch {
             operationMutex.withLock {
-                if (preferredAddress == null) {
-                    publishConnectionStatus("no_device_selected")
-                    publishStatus("searching")
-                    return@withLock
-                }
+                logDebug(
+                    "connect begin preferred=$preferredAddress lastPeripheral=${lastPeripheral?.debugLabel()} seenCount=$seenCount",
+                )
                 publishConnectionStatus("connecting")
-                val cached = preferredPeripheral().also { if (it != null) lastPeripheral = it }
+                val cached = currentTargetPeripheral()
                 val isConnected = cached?.state?.value is ConnectionState.Connected
                 if (!isConnected && cached == null) {
+                    logDebug("connect has no cached target; starting discovery")
                     startDiscovery()
-                    startDiscovery(forceRestart = true)
                 }
 
                 val target = awaitTarget() ?: run {
-                    Log.d(
-                        TAG,
+                    logWarn(
                         "awaitTarget timeout preferred=$preferredAddress seenCount=$seenCount lastSeenTag=$lastSeenTag",
                     )
                     publishConnectionStatus("pairing_timeout")
                     return@withLock
+                }
+
+                logDebug("connect resolved target ${target.debugLabel()} state=${target.state.value::class.simpleName}")
+
+                if (preferredAddress == null) {
+                    setPreferredAddress(target.address)
                 }
 
                 try {
@@ -227,14 +289,19 @@ class LupineBleController(
                     ensureConnected(target)
                     publishStatus("connected")
                     scheduleTelemetryBootstrap(target)
+                    logDebug("connect completed ${target.debugLabel()}")
                 } catch (t: Throwable) {
                     cleanupAfterConnectionFailure(target)
+                    logWarn("connect failed for ${target.debugLabel()}", t)
                     publishStatus("ble error: ${t::class.java.simpleName}")
                     publishConnectionStatus("ble_error:${t::class.java.simpleName}")
                 }
             }
         }.also { job ->
-            job.invokeOnCompletion { if (connectJob === job) connectJob = null }
+            job.invokeOnCompletion {
+                if (connectJob === job) connectJob = null
+                logDebug("connect job completed preferred=$preferredAddress")
+            }
         }
     }
 
@@ -276,6 +343,7 @@ class LupineBleController(
     fun disconnect() {
         scope.launch {
             operationMutex.withLock {
+                logDebug("disconnect requested lastPeripheral=${lastPeripheral?.debugLabel()}")
                 stopRepeatingCommand()
                 val target = lastPeripheral
                 if (target == null) {
@@ -301,6 +369,7 @@ class LupineBleController(
                     publishConnectionStatus("disconnected")
                     resetTelemetryStatus()
                 } catch (t: Throwable) {
+                    logWarn("disconnect failed for ${target.debugLabel()}", t)
                     publishStatus("disconnect error: ${t::class.java.simpleName}")
                 }
             }
@@ -310,6 +379,7 @@ class LupineBleController(
     fun cancelConnectionAttempt() {
         scope.launch {
             operationMutex.withLock {
+                logDebug("cancelConnectionAttempt preferred=$preferredAddress lastPeripheral=${lastPeripheral?.debugLabel()}")
                 connectJob?.cancel()
                 connectJob = null
                 stopDiscovery()
@@ -334,9 +404,11 @@ class LupineBleController(
     }
 
     private suspend fun ensureConnected(peripheral: Peripheral) {
+        logDebug("ensureConnected start ${peripheral.debugLabel()} state=${peripheral.state.value::class.simpleName}")
         if (peripheral.state.value !is ConnectionState.Connected) {
             publishStatus("connecting: ${peripheral.name ?: peripheral.address}")
             publishConnectionStatus("connecting")
+            logDebug("centralManager.connect ${peripheral.debugLabel()}")
             centralManager.connect(peripheral, connectionOptions)
             discoveryJob?.cancel()
             discoveryJob = null
@@ -348,18 +420,24 @@ class LupineBleController(
             publishStatus("connected")
             publishConnectionStatus("connected")
         }
-        waitForCommandCharacteristic(peripheral)
+        val commandCharacteristic = waitForCommandCharacteristic(peripheral)
+        logDebug("command characteristic ${if (commandCharacteristic != null) "ready" else "missing"} for ${peripheral.debugLabel()}")
         ensureNotificationObservation(peripheral)
-        waitUntil(timeoutMs = 40, stepMs = 8) {
+        val ready = waitUntil(timeoutMs = 40, stepMs = 8) {
             notificationJob?.isActive == true && findCommandCharacteristic(peripheral) != null
         }
+        logDebug(
+            "ensureConnected ready=$ready notifyActive=${notificationJob?.isActive == true} for ${peripheral.debugLabel()}",
+        )
     }
 
     private suspend fun cleanupAfterConnectionFailure(peripheral: Peripheral) {
         try {
+            logWarn("cleanupAfterConnectionFailure ${peripheral.debugLabel()}")
             cancelActiveJobs()
             peripheral.disconnect()
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            logWarn("cleanup disconnect failed for ${peripheral.debugLabel()}", t)
         } finally {
             if (lastPeripheral?.address == peripheral.address) {
                 lastPeripheral = null
@@ -372,16 +450,22 @@ class LupineBleController(
 
     private suspend fun requestTelemetry(peripheral: Peripheral) {
         val telemetryStartedAtMs = System.currentTimeMillis()
+        logDebug("requestTelemetry start ${peripheral.debugLabel()}")
         publishStatus("sync telemetry")
         LupineProtocol.buildInitializationFrames().forEachIndexed { index, frameHex ->
-            if (!writeFrameWithRetry(peripheral, frameHex)) return
+            logDebug("requestTelemetry frame[$index]=$frameHex ${peripheral.debugLabel()}")
+            if (!writeFrameWithRetry(peripheral, frameHex)) {
+                logWarn("requestTelemetry frame[$index] failed ${peripheral.debugLabel()}")
+                return
+            }
             if (index < LupineProtocol.buildInitializationFrames().lastIndex) {
                 delay(70)
             }
         }
-        waitUntil(timeoutMs = 140, stepMs = 10) {
+        val telemetryReceived = waitUntil(timeoutMs = 140, stepMs = 10) {
             lastTemperatureStatusAtMs > telemetryStartedAtMs
         }
+        logDebug("requestTelemetry completed receivedNotify=$telemetryReceived ${peripheral.debugLabel()}")
     }
 
     fun applyBeamMode(mode: LupineBeamMode): Boolean {
@@ -404,7 +488,9 @@ class LupineBleController(
             operationMutex.withLock {
                 if (peripheral.state.value !is ConnectionState.Connected) return@withLock
                 if (lastPeripheral?.address != peripheral.address) return@withLock
+                logDebug("telemetry bootstrap firing ${peripheral.debugLabel()}")
                 runCatching { requestTelemetry(peripheral) }
+                    .onFailure { logWarn("telemetry bootstrap failed for ${peripheral.debugLabel()}", it) }
             }
         }.also { job ->
             job.invokeOnCompletion {
@@ -414,32 +500,52 @@ class LupineBleController(
     }
 
     private suspend fun awaitTarget(): Peripheral? {
-        var p = preferredPeripheral().also { if (it != null) lastPeripheral = it } ?: lastPeripheral
+        var p = currentTargetPeripheral()
         if (p?.state?.value is ConnectionState.Connected) return p
-        if (p == null) {
-            publishStatus("searching")
+        if (p != null) {
+            logDebug("awaitTarget using cached ${p.debugLabel()}")
+            return p
+        }
+
+        logDebug("awaitTarget start preferred=$preferredAddress seenCount=$seenCount")
+        publishStatus("searching")
+        if (discoveryJob?.isActive != true) {
             startDiscovery()
-            for (i in 0 until 48) {
-                delay(25)
-                p = preferredPeripheral().also { if (it != null) lastPeripheral = it } ?: lastPeripheral
-                if (p?.state?.value is ConnectionState.Connected || p != null) break
-                if ((i == 11 || i == 23) && seenCount == 0) {
-                    startDiscovery(forceRestart = true)
-                }
-                if (i % 12 == 11) {
-                    publishStatus("searching")
-                }
+        }
+
+        val startedAtMs = System.currentTimeMillis()
+        var lastPulseAtMs = startedAtMs
+        var restartedDiscovery = false
+        while (System.currentTimeMillis() - startedAtMs < AWAIT_TARGET_TIMEOUT_MS) {
+            delay(AWAIT_TARGET_STEP_MS)
+            p = currentTargetPeripheral()
+            if (p?.state?.value is ConnectionState.Connected || p != null) {
+                logDebug("awaitTarget resolved ${p.debugLabel()} after ${System.currentTimeMillis() - startedAtMs}ms")
+                return p
+            }
+            val nowMs = System.currentTimeMillis()
+            if (!restartedDiscovery && nowMs - startedAtMs >= AWAIT_TARGET_RESTART_AFTER_MS && seenCount == 0) {
+                logDebug("awaitTarget restarting discovery after ${nowMs - startedAtMs}ms without matches")
+                startDiscovery(forceRestart = true)
+                restartedDiscovery = true
+            }
+            if (nowMs - lastPulseAtMs >= SEARCH_STATUS_PULSE_MS) {
+                publishStatus("searching")
+                lastPulseAtMs = nowMs
             }
         }
-        return p
+        logWarn("awaitTarget exhausted timeout preferred=$preferredAddress seenCount=$seenCount lastSeen=$lastSeenTag")
+        return currentTargetPeripheral()
     }
 
     private suspend fun writeFrame(peripheral: Peripheral, frameHex: String) {
         val characteristic = findCommandCharacteristic(peripheral)
         if (characteristic == null) {
+            logWarn("writeFrame missing command characteristic ${peripheral.debugLabel()} frame=$frameHex")
             return
         }
 
+        logDebug("writeFrame ${peripheral.debugLabel()} frame=$frameHex")
         characteristic.write(frameHex.hexToBytes(), WriteType.WITH_RESPONSE)
     }
 
@@ -452,34 +558,48 @@ class LupineBleController(
         repeat(attempts) { attempt ->
             val characteristic = findCommandCharacteristic(peripheral)
             if (characteristic != null) {
+                logDebug("writeFrameWithRetry success attempt=${attempt + 1} ${peripheral.debugLabel()} frame=$frameHex")
                 characteristic.write(frameHex.hexToBytes(), WriteType.WITH_RESPONSE)
                 return true
             }
             if (attempt < attempts - 1) {
+                if (attempt == 0 || attempt == attempts - 2) {
+                    logDebug(
+                        "writeFrameWithRetry waiting attempt=${attempt + 1}/${attempts} ${peripheral.debugLabel()} frame=$frameHex",
+                    )
+                }
                 delay(delayMs)
             }
         }
+        logWarn("writeFrameWithRetry exhausted ${peripheral.debugLabel()} frame=$frameHex")
         return false
     }
 
     private suspend fun ensureNotificationObservation(peripheral: Peripheral) {
-        if (observingAddress == peripheral.address && notificationJob?.isActive == true) return
+        if (observingAddress == peripheral.address && notificationJob?.isActive == true) {
+            logDebug("ensureNotificationObservation already active ${peripheral.debugLabel()}")
+            return
+        }
 
         notificationJob?.cancel()
         val characteristic = findNotifyCharacteristic(peripheral) ?: return
         observingAddress = peripheral.address
+        logDebug("subscribing notify characteristic ${peripheral.debugLabel()}")
         notificationJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 characteristic.subscribe().collect { data ->
                     val hex = data.toHexString()
+                    logDebug("notify ${peripheral.debugLabel()} hex=$hex")
                     parseNotifyFrame(hex)
                 }
-            } catch (_: Throwable) {
+            } catch (t: Throwable) {
+                logWarn("notify observation failed for ${peripheral.debugLabel()}", t)
             }
         }
     }
 
     private suspend fun findCharacteristic(peripheral: Peripheral, uuid: Uuid): RemoteCharacteristic? {
+        logDebug("findCharacteristic ${peripheral.debugLabel()} uuid=$uuid")
         val servicesFlow = peripheral.services(listOf(targetService))
         var service = servicesFlow.value.firstOrNull()
         if (service == null) {
@@ -491,13 +611,16 @@ class LupineBleController(
         }
 
         if (service == null) {
+            logWarn("service missing ${peripheral.debugLabel()} service=$targetService")
             return null
         }
 
         val characteristic = service!!.characteristics.firstOrNull { it.uuid == uuid }
         if (characteristic == null) {
+            logWarn("characteristic missing ${peripheral.debugLabel()} uuid=$uuid")
             return null
         }
+        logDebug("characteristic resolved ${peripheral.debugLabel()} uuid=$uuid")
         return characteristic
     }
 
@@ -513,11 +636,13 @@ class LupineBleController(
             if (characteristic != null) return characteristic
             delay(40)
         }
+        logWarn("waitForCommandCharacteristic timed out ${peripheral.debugLabel()}")
         return null
     }
 
     private fun parseNotifyFrame(frameHex: String) {
         LupineProtocol.parseStatusSnapshot(frameHex)?.let { snapshot ->
+            logDebug("parseNotifyFrame parsed output=${snapshot.outputTarget} eco=${snapshot.isEco} raw=${snapshot.rawHex}")
             ActualLightState.set(
                 appContext,
                 when (snapshot.outputTarget) {
@@ -531,7 +656,9 @@ class LupineBleController(
             )
             publishTemperatureStatus("SYNC")
             publishStatus("connected")
+            return
         }
+        logDebug("parseNotifyFrame ignored raw=$frameHex")
     }
 
     private fun matchesSupportedFamily(name: String): Boolean =
@@ -678,29 +805,33 @@ class LupineBleController(
 
     private suspend fun sendInternal(frameHex: String) {
         if (preferredAddress == null) {
+            logWarn("sendInternal aborted: no preferred device frame=$frameHex")
             publishConnectionStatus("no_device_selected")
             publishStatus("searching")
             return
         }
-        val cached = preferredPeripheral().also { if (it != null) lastPeripheral = it } ?: lastPeripheral
+        val cached = currentTargetPeripheral()
         val isConnected = cached?.state?.value is ConnectionState.Connected
         if (!isConnected && cached == null) {
+            logDebug("sendInternal needs discovery preferred=$preferredAddress frame=$frameHex")
             startDiscovery()
-            startDiscovery(forceRestart = true)
         }
 
         val target = awaitTarget()
         if (target == null) {
+            logWarn("sendInternal target missing preferred=$preferredAddress frame=$frameHex")
             publishStatus("searching")
             publishConnectionStatus("no_device")
             return
         }
 
         try {
+            logDebug("sendInternal target=${target.debugLabel()} frame=$frameHex")
             ensureConnected(target)
             writeFrame(target, frameHex)
         } catch (t: Throwable) {
             cleanupAfterConnectionFailure(target)
+            logWarn("sendInternal failed target=${target.debugLabel()} frame=$frameHex", t)
             publishStatus("ble error: ${t::class.java.simpleName}")
         }
     }

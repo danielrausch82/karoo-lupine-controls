@@ -16,8 +16,8 @@ android {
         applicationId "com.karoo.lupinecontrols"
         minSdk 26
         targetSdk 34
-        versionCode 5
-        versionName "Beta 1.4"
+        versionCode 6
+        versionName "Beta 1.5"
     }
 
     buildTypes {
