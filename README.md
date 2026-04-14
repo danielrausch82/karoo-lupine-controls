@@ -2,8 +2,6 @@
 
 Karoo app and Karoo extension for controlling a Lupine SL Grano F over BLE.
 
-![Karoo Lupine Controls UI](docs/images/karoo-ui.svg)
-
 ## About
 
 Lupine Controls is a Karoo app plus ride-field extension for controlling the Lupine SL Grano F over BLE.
