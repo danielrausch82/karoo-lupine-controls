@@ -60,7 +60,8 @@ class LupineBleController(
     private val centralManager by lazy { CentralManager.Factory.native(appContext, scope) }
 
     private val targetService = Uuid.parse(LupineBleProfile.PRIMARY_SERVICE_UUID)
-    private val targetChar = Uuid.parse(LupineBleProfile.COMMAND_CHARACTERISTIC_UUID)
+    private val commandChar = Uuid.parse(LupineBleProfile.COMMAND_CHARACTERISTIC_UUID)
+    private val notifyChar = Uuid.parse(LupineBleProfile.NOTIFY_CHARACTERISTIC_UUID)
 
     private val connectionOptions by lazy {
         CentralManager.ConnectionOptions.Direct(timeout = 8.seconds, retry = 0, retryDelay = 1.seconds)
@@ -347,10 +348,10 @@ class LupineBleController(
             publishStatus("connected")
             publishConnectionStatus("connected")
         }
-        waitForTargetCharacteristic(peripheral)
+        waitForCommandCharacteristic(peripheral)
         ensureNotificationObservation(peripheral)
         waitUntil(timeoutMs = 40, stepMs = 8) {
-            notificationJob?.isActive == true && findTargetCharacteristic(peripheral) != null
+            notificationJob?.isActive == true && findCommandCharacteristic(peripheral) != null
         }
     }
 
@@ -434,7 +435,7 @@ class LupineBleController(
     }
 
     private suspend fun writeFrame(peripheral: Peripheral, frameHex: String) {
-        val characteristic = findTargetCharacteristic(peripheral)
+        val characteristic = findCommandCharacteristic(peripheral)
         if (characteristic == null) {
             return
         }
@@ -449,7 +450,7 @@ class LupineBleController(
         delayMs: Long = 60,
     ): Boolean {
         repeat(attempts) { attempt ->
-            val characteristic = findTargetCharacteristic(peripheral)
+            val characteristic = findCommandCharacteristic(peripheral)
             if (characteristic != null) {
                 characteristic.write(frameHex.hexToBytes(), WriteType.WITH_RESPONSE)
                 return true
@@ -465,7 +466,7 @@ class LupineBleController(
         if (observingAddress == peripheral.address && notificationJob?.isActive == true) return
 
         notificationJob?.cancel()
-        val characteristic = findTargetCharacteristic(peripheral) ?: return
+        val characteristic = findNotifyCharacteristic(peripheral) ?: return
         observingAddress = peripheral.address
         notificationJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
@@ -478,7 +479,7 @@ class LupineBleController(
         }
     }
 
-    private suspend fun findTargetCharacteristic(peripheral: Peripheral): RemoteCharacteristic? {
+    private suspend fun findCharacteristic(peripheral: Peripheral, uuid: Uuid): RemoteCharacteristic? {
         val servicesFlow = peripheral.services(listOf(targetService))
         var service = servicesFlow.value.firstOrNull()
         if (service == null) {
@@ -493,16 +494,22 @@ class LupineBleController(
             return null
         }
 
-        val characteristic = service!!.characteristics.firstOrNull { it.uuid == targetChar }
+        val characteristic = service!!.characteristics.firstOrNull { it.uuid == uuid }
         if (characteristic == null) {
             return null
         }
         return characteristic
     }
 
-    private suspend fun waitForTargetCharacteristic(peripheral: Peripheral): RemoteCharacteristic? {
+    private suspend fun findCommandCharacteristic(peripheral: Peripheral): RemoteCharacteristic? =
+        findCharacteristic(peripheral, commandChar)
+
+    private suspend fun findNotifyCharacteristic(peripheral: Peripheral): RemoteCharacteristic? =
+        findCharacteristic(peripheral, notifyChar)
+
+    private suspend fun waitForCommandCharacteristic(peripheral: Peripheral): RemoteCharacteristic? {
         repeat(8) {
-            val characteristic = findTargetCharacteristic(peripheral)
+            val characteristic = findCommandCharacteristic(peripheral)
             if (characteristic != null) return characteristic
             delay(40)
         }

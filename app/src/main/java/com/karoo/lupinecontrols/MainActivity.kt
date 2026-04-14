@@ -340,6 +340,7 @@ class MainActivity : AppCompatActivity() {
         val service = controlService
         val selectedLamp = service?.currentSelectedLamp()
         val candidates = service?.currentLampCandidates() ?: emptyList()
+        maybeAutoSelectDiscoveredLamp(candidates)
         val preferredAddress = service?.currentPreferredAddress() ?: currentSelectedLampAddress
         currentSelectedLampAddress = preferredAddress
         if (selectedLamp != null && currentSelectedLampName != selectedLamp.name) {
@@ -354,7 +355,7 @@ class MainActivity : AppCompatActivity() {
         chooserHintView.text = if (candidates.isEmpty()) {
             buildChooserHintText()
         } else {
-            getString(R.string.tap_to_select)
+            getString(R.string.connection_message_device_found)
         }
 
         val signature = candidates.joinToString("|") { "${it.address}:${it.name}" }
@@ -543,6 +544,20 @@ class MainActivity : AppCompatActivity() {
         return "$message\n$actionText"
     }
 
+    private fun maybeAutoSelectDiscoveredLamp(candidates: List<LampCandidate>) {
+        if (!discoveryRequestedFromUi) return
+        if (currentSelectedLampAddress != null) return
+        if (currentConnectionStatus == "connecting" || currentConnectionStatus == "connected") return
+        if (candidates.size != 1) return
+
+        val candidate = candidates.first()
+        saveSelectedLamp(candidate.address, candidate.name)
+        controlService?.setPreferredAddress(candidate.address)
+        currentDisplayStatus = "connecting"
+        lastConnectionMessage = getString(R.string.connection_message_auto_connecting, candidate.name)
+        controlService?.connect()
+    }
+
     private fun isConnectionInProgress(status: String): Boolean =
         status == "connecting" || status == "searching"
 
@@ -553,14 +568,28 @@ class MainActivity : AppCompatActivity() {
         status == "pairing_timeout" -> getString(R.string.connection_message_timeout)
         status.startsWith("discovery_error:") -> getString(
             R.string.connection_message_discovery_error,
-            status.substringAfter(':', getString(R.string.connection_reason_unknown)),
+            humanReadableConnectionReason(status.substringAfter(':', getString(R.string.connection_reason_unknown))),
         )
         status.startsWith("ble_error:") -> getString(
             R.string.connection_message_ble_error,
-            status.substringAfter(':', getString(R.string.connection_reason_unknown)),
+            humanReadableConnectionReason(status.substringAfter(':', getString(R.string.connection_reason_unknown))),
         )
         status == "disconnected" -> getString(R.string.connection_message_disconnected)
         else -> null
+    }
+
+    private fun humanReadableConnectionReason(reason: String): String {
+        val normalized = reason.trim().lowercase()
+        return when {
+            normalized.contains("timeout") -> getString(R.string.connection_reason_timeout)
+            normalized.contains("security") -> getString(R.string.connection_reason_permissions)
+            normalized.contains("gatt") -> getString(R.string.connection_reason_gatt)
+            normalized.contains("illegalstate") -> getString(R.string.connection_reason_try_again)
+            normalized.contains("cancel") -> getString(R.string.connection_reason_cancelled)
+            normalized.contains("io") -> getString(R.string.connection_reason_try_again)
+            normalized.contains("nullpointer") -> getString(R.string.connection_reason_internal)
+            else -> reason.takeIf { it.isNotBlank() } ?: getString(R.string.connection_reason_unknown)
+        }
     }
 
     private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
