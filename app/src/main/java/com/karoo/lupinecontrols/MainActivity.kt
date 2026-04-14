@@ -371,11 +371,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateProtocolSectionUi() {
         val background = if (protocolVisible) R.drawable.bg_module_selected else R.drawable.bg_module_idle
-        val textColor = if (protocolVisible) {
-            ResourcesCompat.getColor(resources, R.color.white, theme)
-        } else {
-            ResourcesCompat.getColor(resources, R.color.karoo_ui_text_dark, theme)
-        }
+        val textColor = ResourcesCompat.getColor(resources, R.color.karoo_ui_text_primary, theme)
         protocolToggleButton.setBackgroundResource(background)
         protocolToggleButton.setTextColor(textColor)
         protocolToggleButton.text = getString(

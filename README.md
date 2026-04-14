@@ -29,9 +29,8 @@ This repository now contains the current Lupine Controls beta release for Karoo.
 
 ## Current Caveats
 
-- The BLE protocol migration is still in progress and not all Lupine notify states are decoded yet.
-- We still need protocol details from Lupine for the encrypted BLE session after pairing before low/high/off, feedback, and unpair behavior can be completed with confidence.
-- The Karoo UI is the primary target; generic phone layouts are not a focus yet.
+- I am still migrating the BLE protocol and not all Lupine notify states are decoded yet.
+- I still need protocol details from Lupine for the encrypted BLE session after pairing before low/high/off, feedback, and unpair behavior can be completed with confidence.
 
 ## License
 
