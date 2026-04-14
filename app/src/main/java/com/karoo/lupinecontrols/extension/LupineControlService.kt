@@ -280,6 +280,11 @@ class LupineControlService : Service() {
         controller.disconnect()
         stopForegroundIfHeld()
     }
+    fun cancelConnectionAttempt() {
+        cancelPendingWork()
+        controller.cancelConnectionAttempt()
+        stopForegroundIfHeld()
+    }
 
     fun applyBeamMode(mode: LupineBeamMode) {
         controller.applyBeamMode(mode)

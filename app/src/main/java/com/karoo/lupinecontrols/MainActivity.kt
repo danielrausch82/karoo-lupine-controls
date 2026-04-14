@@ -28,6 +28,7 @@ import com.karoo.lupinecontrols.extension.ActualLightState
 import com.karoo.lupinecontrols.extension.AppUiState
 import com.karoo.lupinecontrols.extension.LupineControlService
 import com.karoo.lupinecontrols.extension.SharedLightState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -55,6 +56,7 @@ class MainActivity : AppCompatActivity() {
         private const val TAP_MAX_MS = 350L
         private const val LONG_PRESS_MS = 750L
         private const val UNPAIR_PRESS_MS = 10_000L
+        private const val PAIRING_TIMEOUT_MS = 30_000L
         private const val CONNECT_FEEDBACK_MS = 3_000L
         private const val DISCONNECT_FEEDBACK_MS = 4_000L
     }
@@ -79,10 +81,12 @@ class MainActivity : AppCompatActivity() {
     private var currentSelectedLampName: String? = null
     private var lastRenderedCandidateSignature: String = ""
     private var discoveryRequestedFromUi: Boolean = false
+    private var lastConnectionMessage: String? = null
     private var remoteT1DownAtMs: Long = 0L
     private var remoteT2DownAtMs: Long = 0L
     private var activeRemoteFeedback: RemoteFeedback = RemoteFeedback.NONE
     private var remoteFeedbackUntilMs: Long = 0L
+    private var pairingTimeoutJob: Job? = null
     private val serviceListener = object : LupineControlService.Listener {
         override fun onStatus(status: String) {
             runOnUiThread {
@@ -97,10 +101,19 @@ class MainActivity : AppCompatActivity() {
                 currentConnectionStatus = status
                 if (status == "connected" && previousStatus != "connected") {
                     discoveryRequestedFromUi = false
+                    cancelPairingTimeout()
+                    lastConnectionMessage = getString(R.string.connection_message_success)
                     showRemoteFeedback(RemoteFeedback.CONNECTED, CONNECT_FEEDBACK_MS)
                 } else if (previousStatus == "connected" && status == "disconnected") {
                     discoveryRequestedFromUi = false
+                    cancelPairingTimeout()
+                    lastConnectionMessage = getString(R.string.connection_message_disconnected)
                     showRemoteFeedback(RemoteFeedback.DISCONNECTED, DISCONNECT_FEEDBACK_MS)
+                } else if (isConnectionInProgress(status)) {
+                    lastConnectionMessage = getString(R.string.connection_message_in_progress)
+                } else {
+                    cancelPairingTimeout()
+                    lastConnectionMessage = connectionMessageForStatus(status)
                 }
                 refreshLampSelectionUi()
                 updateOutputControls()
@@ -196,6 +209,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        cancelPairingTimeout()
         if (isFinishing) {
             AppUiState.setActive(this, false)
         }
@@ -216,12 +230,16 @@ class MainActivity : AppCompatActivity() {
         if (currentSelectedLampAddress == null) {
             discoveryRequestedFromUi = true
             currentDisplayStatus = "searching"
+            lastConnectionMessage = getString(R.string.connection_message_searching)
+            startPairingTimeout()
             controlService?.startDiscovery(forceRestart = true)
             refreshLampSelectionUi()
             return
         }
         discoveryRequestedFromUi = true
         currentDisplayStatus = "connecting"
+        lastConnectionMessage = getString(R.string.connection_message_in_progress)
+        startPairingTimeout()
         controlService?.connect()
         refreshLampSelectionUi()
     }
@@ -334,12 +352,7 @@ class MainActivity : AppCompatActivity() {
         controlPanel.visibility = android.view.View.VISIBLE
 
         chooserHintView.text = if (candidates.isEmpty()) {
-            when {
-                discoveryRequestedFromUi || currentConnectionStatus == "connecting" -> getString(R.string.searching_for_lupine_lights)
-                currentConnectionStatus == "connected" -> getString(R.string.hold_main_button_to_disconnect)
-                currentSelectedLampAddress == null -> getString(R.string.hold_main_button_to_pair)
-                else -> getString(R.string.hold_main_button_to_reconnect)
-            }
+            buildChooserHintText()
         } else {
             getString(R.string.tap_to_select)
         }
@@ -362,6 +375,8 @@ class MainActivity : AppCompatActivity() {
                     controlService?.setPreferredAddress(candidate.address)
                     if (discoveryRequestedFromUi) {
                         currentDisplayStatus = "connecting"
+                        lastConnectionMessage = getString(R.string.connection_message_in_progress)
+                        startPairingTimeout()
                         controlService?.connect()
                     }
                     refreshLampSelectionUi()
@@ -491,6 +506,61 @@ class MainActivity : AppCompatActivity() {
     private fun showRemoteFeedback(feedback: RemoteFeedback, durationMs: Long) {
         activeRemoteFeedback = feedback
         remoteFeedbackUntilMs = SystemClock.elapsedRealtime() + durationMs
+    }
+
+    private fun startPairingTimeout() {
+        cancelPairingTimeout()
+        pairingTimeoutJob = lifecycleScope.launch {
+            delay(PAIRING_TIMEOUT_MS)
+            if (!discoveryRequestedFromUi || currentConnectionStatus == "connected") return@launch
+            discoveryRequestedFromUi = false
+            controlService?.cancelConnectionAttempt()
+            lastConnectionMessage = getString(R.string.connection_message_timeout)
+            currentDisplayStatus = "idle"
+            refreshLampSelectionUi()
+            updateOutputControls()
+            Toast.makeText(
+                this@MainActivity,
+                getString(R.string.toast_pairing_timeout),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    private fun cancelPairingTimeout() {
+        pairingTimeoutJob?.cancel()
+        pairingTimeoutJob = null
+    }
+
+    private fun buildChooserHintText(): String {
+        val actionText = when {
+            currentConnectionStatus == "connected" -> getString(R.string.hold_main_button_to_disconnect)
+            discoveryRequestedFromUi || isConnectionInProgress(currentConnectionStatus) -> getString(R.string.searching_for_lupine_lights)
+            currentSelectedLampAddress == null -> getString(R.string.hold_main_button_to_pair)
+            else -> getString(R.string.hold_main_button_to_reconnect)
+        }
+        val message = lastConnectionMessage?.takeIf { it.isNotBlank() } ?: return actionText
+        return "$message\n$actionText"
+    }
+
+    private fun isConnectionInProgress(status: String): Boolean =
+        status == "connecting" || status == "searching"
+
+    private fun connectionMessageForStatus(status: String): String? = when {
+        status == "permissions" -> getString(R.string.connection_message_permissions)
+        status == "no_device" -> getString(R.string.connection_message_no_device)
+        status == "no_device_selected" -> getString(R.string.connection_message_select_device)
+        status == "pairing_timeout" -> getString(R.string.connection_message_timeout)
+        status.startsWith("discovery_error:") -> getString(
+            R.string.connection_message_discovery_error,
+            status.substringAfter(':', getString(R.string.connection_reason_unknown)),
+        )
+        status.startsWith("ble_error:") -> getString(
+            R.string.connection_message_ble_error,
+            status.substringAfter(':', getString(R.string.connection_reason_unknown)),
+        )
+        status == "disconnected" -> getString(R.string.connection_message_disconnected)
+        else -> null
     }
 
     private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus

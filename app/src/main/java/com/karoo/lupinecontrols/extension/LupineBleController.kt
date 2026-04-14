@@ -109,6 +109,7 @@ class LupineBleController(
         }
         if (!hasBlePermissions()) {
             publishStatus("missing bluetooth permissions")
+            publishConnectionStatus("permissions")
             return
         }
 
@@ -149,6 +150,7 @@ class LupineBleController(
                     }
             } catch (t: Throwable) {
                 publishStatus("discovery error: ${t::class.java.simpleName}")
+                publishConnectionStatus("discovery_error:${t::class.java.simpleName}")
             }
         }
     }
@@ -198,7 +200,7 @@ class LupineBleController(
         connectJob = scope.launch {
             operationMutex.withLock {
                 if (preferredAddress == null) {
-                    publishConnectionStatus("no device")
+                    publishConnectionStatus("no_device_selected")
                     publishStatus("searching")
                     return@withLock
                 }
@@ -215,7 +217,7 @@ class LupineBleController(
                         TAG,
                         "awaitTarget timeout preferred=$preferredAddress seenCount=$seenCount lastSeenTag=$lastSeenTag",
                     )
-                    publishConnectionStatus("no device")
+                    publishConnectionStatus("pairing_timeout")
                     return@withLock
                 }
 
@@ -227,7 +229,7 @@ class LupineBleController(
                 } catch (t: Throwable) {
                     cleanupAfterConnectionFailure(target)
                     publishStatus("ble error: ${t::class.java.simpleName}")
-                    publishConnectionStatus("fehler")
+                    publishConnectionStatus("ble_error:${t::class.java.simpleName}")
                 }
             }
         }.also { job ->
@@ -300,6 +302,32 @@ class LupineBleController(
                 } catch (t: Throwable) {
                     publishStatus("disconnect error: ${t::class.java.simpleName}")
                 }
+            }
+        }
+    }
+
+    fun cancelConnectionAttempt() {
+        scope.launch {
+            operationMutex.withLock {
+                connectJob?.cancel()
+                connectJob = null
+                stopDiscovery()
+                stopRepeatingCommand()
+                telemetryBootstrapJob?.cancel()
+                telemetryBootstrapJob = null
+                notificationJob?.cancel()
+                notificationJob = null
+                observingAddress = null
+                runCatching {
+                    val peripheral = preferredPeripheral() ?: lastPeripheral
+                    if (peripheral?.state?.value is ConnectionState.Connected) {
+                        peripheral.disconnect()
+                    }
+                }
+                clearActiveConnectionState(clearCachedPeripheral = false)
+                publishStatus("idle")
+                publishConnectionStatus("disconnected")
+                resetTelemetryStatus()
             }
         }
     }
@@ -643,7 +671,7 @@ class LupineBleController(
 
     private suspend fun sendInternal(frameHex: String) {
         if (preferredAddress == null) {
-            publishConnectionStatus("no device")
+            publishConnectionStatus("no_device_selected")
             publishStatus("searching")
             return
         }
@@ -657,7 +685,7 @@ class LupineBleController(
         val target = awaitTarget()
         if (target == null) {
             publishStatus("searching")
-            publishConnectionStatus("no device")
+            publishConnectionStatus("no_device")
             return
         }
 

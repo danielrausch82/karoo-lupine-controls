@@ -2,10 +2,10 @@
   "label": "Lupine Controls",
   "packageName": "com.karoo.lupinecontrols",
   "iconUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/icon.png",
-  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.0.apk",
-  "latestVersion": "Beta 1.0",
-  "latestVersionCode": 1,
+  "latestApkUrl": "https://github.com/danielrausch82/karoo-lupine-controls/releases/latest/download/karoo-lupine-controls-beta-1.1.apk",
+  "latestVersion": "Beta 1.1",
+  "latestVersionCode": 2,
   "developer": "Daniel Rausch",
   "description": "Control the Lupine SL Grano F from the Karoo app or the in-ride field, with ride-aware connection handling and a Lupine-specific control surface.",
-  "releaseNotes": "* First public Lupine Controls beta for Karoo\n* Replaced all Magicshine app metadata with Lupine branding\n* Added the Lupine remote-style control surface with pairing feedback\n* Included English and German app text plus updated install assets"
+  "releaseNotes": "* Added explicit connection result messages in English and German\n* Pairing now stops automatically after 30 seconds\n* Improved failure reporting for missing permissions, missing lamp, discovery errors, and BLE connection errors\n* Updated published install metadata for the second beta"
 }

@@ -47,6 +47,18 @@
     <string name="status_disconnected">disconnected</string>
     <string name="status_permissions">permissions required</string>
     <string name="status_error">error</string>
+    <string name="connection_reason_unknown">Unknown</string>
+    <string name="connection_message_success">Connection successful</string>
+    <string name="connection_message_disconnected">Disconnected</string>
+    <string name="connection_message_in_progress">Trying to connect to the lamp</string>
+    <string name="connection_message_searching">Searching for a Lupine lamp</string>
+    <string name="connection_message_timeout">Connection stopped after 30 seconds. No lamp answered in time.</string>
+    <string name="connection_message_permissions">Connection failed. Bluetooth permissions are missing.</string>
+    <string name="connection_message_no_device">Connection failed. The selected lamp could not be found.</string>
+    <string name="connection_message_select_device">Connection failed. Select a lamp first.</string>
+    <string name="connection_message_discovery_error">Lamp search failed: %1$s</string>
+    <string name="connection_message_ble_error">Connection failed: %1$s</string>
     <string name="toast_grant_bluetooth_permissions">Grant Bluetooth permissions first</string>
     <string name="toast_select_lamp_first">Select a lamp first</string>
+    <string name="toast_pairing_timeout">Pairing stopped after 30 seconds</string>
 </resources>

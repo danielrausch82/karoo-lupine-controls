@@ -47,6 +47,18 @@
     <string name="status_disconnected">getrennt</string>
     <string name="status_permissions">Berechtigungen erforderlich</string>
     <string name="status_error">Fehler</string>
+    <string name="connection_reason_unknown">Unbekannt</string>
+    <string name="connection_message_success">Verbindung erfolgreich</string>
+    <string name="connection_message_disconnected">Verbindung getrennt</string>
+    <string name="connection_message_in_progress">Verbindung zur Lampe wird aufgebaut</string>
+    <string name="connection_message_searching">Suche nach einer Lupine-Lampe</string>
+    <string name="connection_message_timeout">Verbindung nach 30 Sekunden beendet. Keine Lampe hat rechtzeitig geantwortet.</string>
+    <string name="connection_message_permissions">Verbindung fehlgeschlagen. Bluetooth-Berechtigungen fehlen.</string>
+    <string name="connection_message_no_device">Verbindung fehlgeschlagen. Die ausgewählte Lampe wurde nicht gefunden.</string>
+    <string name="connection_message_select_device">Verbindung fehlgeschlagen. Bitte zuerst eine Lampe auswählen.</string>
+    <string name="connection_message_discovery_error">Lampensuche fehlgeschlagen: %1$s</string>
+    <string name="connection_message_ble_error">Verbindung fehlgeschlagen: %1$s</string>
     <string name="toast_grant_bluetooth_permissions">Bitte zuerst Bluetooth-Berechtigungen erteilen</string>
     <string name="toast_select_lamp_first">Bitte zuerst eine Lampe auswählen</string>
+    <string name="toast_pairing_timeout">Koppeln nach 30 Sekunden automatisch beendet</string>
 </resources>
